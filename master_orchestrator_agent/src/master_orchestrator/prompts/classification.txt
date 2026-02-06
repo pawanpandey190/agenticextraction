@@ -1,0 +1,19 @@
+Analyze this document image and classify it into one of the following categories:
+
+1. PASSPORT - Identity documents such as passports, ID cards, or travel documents
+2. FINANCIAL - Banking documents such as bank statements, balance certificates, bank letters, or financial statements
+3. EDUCATION - Academic documents such as transcripts, degrees, diplomas, certificates, or mark sheets
+
+Respond with ONLY a JSON object in this exact format:
+{
+    "category": "PASSPORT" | "FINANCIAL" | "EDUCATION",
+    "confidence": 0.0-1.0,
+    "reasoning": "Brief explanation"
+}
+
+If you cannot determine the category, respond with:
+{
+    "category": "UNKNOWN",
+    "confidence": 0.0,
+    "reasoning": "Explanation of why classification failed"
+}
