@@ -1,0 +1,52 @@
+aiofiles==25.1.0
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.12.1
+certifi==2026.1.4
+click==8.3.1
+distro==1.9.0
+# Editable install with no version control (document-analysis-ui==0.1.0)
+-e /Users/pawanpandey/Documents/french_admission_workflow-main/document_analysis_ui/backend
+# Editable install with no version control (education-credential-agent==0.1.0)
+-e /Users/pawanpandey/Documents/french_admission_workflow-main/education_credential_agent
+et_xmlfile==2.0.0
+fastapi==0.128.1
+# Editable install with no version control (financial-document-agent==0.1.0)
+-e /Users/pawanpandey/Documents/french_admission_workflow-main/financial_document_agent
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.7.1
+httpx==0.28.1
+idna==3.11
+jiter==0.13.0
+lxml==6.0.2
+# Editable install with no version control (master-orchestrator-agent==0.1.0)
+-e /Users/pawanpandey/Documents/french_admission_workflow-main/master_orchestrator_agent
+numpy==2.4.2
+openai==2.16.0
+opencv-python==4.13.0.92
+openpyxl==3.1.5
+# Editable install with no version control (passport-analysis-agent==0.1.0)
+-e /Users/pawanpandey/Documents/french_admission_workflow-main/passport_analysis_agent
+pillow==12.1.0
+pydantic==2.12.5
+pydantic-settings==2.12.0
+pydantic_core==2.41.5
+pypdfium2==5.3.0
+python-docx==1.2.0
+python-dotenv==1.2.1
+python-multipart==0.0.22
+PyYAML==6.0.3
+RapidFuzz==3.14.3
+sniffio==1.3.1
+sse-starlette==3.2.0
+starlette==0.50.0
+structlog==25.5.0
+tenacity==9.1.3
+tqdm==4.67.3
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+uvicorn==0.40.0
+uvloop==0.22.1
+watchfiles==1.1.1
+websockets==16.0
