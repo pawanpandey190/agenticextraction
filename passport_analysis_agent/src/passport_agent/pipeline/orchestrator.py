@@ -99,6 +99,9 @@ class PassportPipelineOrchestrator:
                 processing_errors=context.metadata.errors,
                 processing_warnings=context.metadata.warnings,
                 source_file=file_path,
+                accuracy_score=0,
+                confidence_level="LOW",
+                remarks=f"Analysis failed to complete full scoring. Errors: {', '.join(context.metadata.errors)}" if context.metadata.errors else "Analysis incomplete due to pipeline interruption."
             )
 
         logger.info(

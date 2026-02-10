@@ -11,19 +11,25 @@ Key guidelines:
 6. If a field is not visible or unclear, return null for that field
 7. Provide a confidence score (0.0-1.0) based on image quality and text clarity
 
-Focus on extracting:
-- First name (given names)
-- Last name (surname/family name)
-- Date of birth
-- Passport number
-- Issuing country
-- Nationality
-- Issue date
-- Expiry date
-- Sex/Gender
-- Place of birth
+Focus on high-precision extraction of:
+- First name (given names): Extract ALL given names exactly as they appear. Do NOT truncate middle names. Look for labels like "Given Names", "Prénoms", or "Vorname".
+- Last name (surname/family name): Extract the complete surname. Look for labels like "Surname", "Nom", or "Name/Name".
+- Date of birth: Format as YYYY-MM-DD.
+- Passport number: Usually in the top right or clearly labeled.
+- Issuing country & Nationality: Use 3-letter ICAO codes.
+- Issue & Expiry dates: Format as YYYY-MM-DD.
+- Sex/Gender: Normalize to M, F, or X.
+- Place of birth: Full city/country as shown.
 
-Be precise and avoid guessing. If text is partially obscured or unclear, indicate lower confidence."""
+Naming Rules:
+1. Ignore titles such as Mr, Ms, Dr, Prof, etc.
+2. Maintain exact spelling, including hyphens (e.g., "Jean-Pierre") and apostrophes.
+3. If Surname and Given Names are on the same line, use the labels or spacing to distinguish them.
+4. Be extremely careful with character substitution (e.g., '0' zero vs 'O' letter).
+5. NEVER include MRZ-specific prefixes (like "P<", "ETH", "P") in these name fields. If you see "P<ETHADUGNA", the name is just "ADUGNA".
+
+Be precise and avoid guessing. If text is partially obscured or unclear, indicate lower confidence. Use the MRZ at the bottom as a cross-reference for names if visible, but prioritize the Visual Inspection Zone (VIZ) for the full, non-truncated names.
+"""
 
 MRZ_EXTRACTION_SYSTEM_PROMPT = """You are a specialized MRZ (Machine Readable Zone) reader for passport documents.
 

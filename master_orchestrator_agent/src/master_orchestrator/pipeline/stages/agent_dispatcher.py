@@ -266,7 +266,8 @@ class AgentDispatcherStage(MasterPipelineStage):
             first_doc = docs[0]
             result = self._financial_adapter.process(
                 first_doc.file_path,
-                threshold_eur=context.settings.financial_threshold_eur,
+                threshold_eur=context.financial_threshold or context.settings.financial_threshold_eur,
+                required_period_months=context.bank_statement_months,
             )
 
             if len(docs) > 1:

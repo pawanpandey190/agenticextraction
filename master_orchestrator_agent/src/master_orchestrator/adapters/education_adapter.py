@@ -36,7 +36,7 @@ class EducationAgentAdapter:
         try:
             # Set environment variable for education agent
             api_key = self._settings.get_education_api_key()
-            os.environ["EA_OPENAI_API_KEY"] = api_key
+            os.environ["EA_ANTHROPIC_API_KEY"] = api_key or ""
 
             from education_agent.config.settings import Settings as EducationSettings
             from education_agent.pipeline.orchestrator import PipelineOrchestrator

@@ -2,12 +2,12 @@
 
 from .exchange_service import ExchangeService
 from .llm_service import LLMService
-from .ocr_service import OpenAIVisionOCR, OCRService, TesseractOCR, create_ocr_service
+from .ocr_service import AnthropicVisionOCR, OCRService, TesseractOCR, create_ocr_service
 
 __all__ = [
     "LLMService",
     "OCRService",
-    "OpenAIVisionOCR",
+    "AnthropicVisionOCR",
     "TesseractOCR",
     "create_ocr_service",
     "ExchangeService",

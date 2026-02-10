@@ -32,12 +32,18 @@ class PassportAgentAdapter:
         try:
             # Set environment variable for passport agent
             api_key = self._settings.get_passport_api_key()
-            os.environ["PA_OPENAI_API_KEY"] = api_key
+            os.environ["PA_ANTHROPIC_API_KEY"] = api_key or ""
+            
+            # Diagnostic
+            key_preview = f"{api_key[:12]}...{api_key[-5:]}" if api_key else "EMPTY"
+            logger.error("ADAPTER_KEY_DIAGNOSTIC", key_preview=key_preview, key_len=len(api_key) if api_key else 0)
 
             from passport_agent.config.settings import Settings as PassportSettings
             from passport_agent.pipeline.orchestrator import PassportPipelineOrchestrator
 
             passport_settings = PassportSettings()
+            logger.error("PASSPORT_SETTINGS_KEY", key_preview=f"{passport_settings.anthropic_api_key.get_secret_value()[:12]}..." if passport_settings.anthropic_api_key else "EMPTY")
+            
             self._orchestrator = PassportPipelineOrchestrator(settings=passport_settings)
 
             logger.info("passport_agent_initialized")

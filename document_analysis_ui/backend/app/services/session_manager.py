@@ -88,6 +88,7 @@ class SessionManager:
     def create_session(
         self,
         financial_threshold: float = 15000.0,
+        bank_statement_period: int = 3,
         batch_id: str | None = None,
         student_name: str | None = None,
         student_folder: str | None = None,
@@ -96,6 +97,7 @@ class SessionManager:
 
         Args:
             financial_threshold: Financial worthiness threshold in EUR.
+            bank_statement_period: Required bank statement period in months.
             batch_id: Optional batch ID if part of batch upload.
             student_name: Optional student name from folder.
             student_folder: Optional original folder name.
@@ -105,6 +107,7 @@ class SessionManager:
         """
         session = Session(
             financial_threshold=financial_threshold,
+            bank_statement_period=bank_statement_period,
             batch_id=batch_id,
             student_name=student_name,
             student_folder=student_folder,
@@ -133,6 +136,7 @@ class SessionManager:
         student_folders: dict[str, list[str]],
         batch_id: str,
         financial_threshold: float = 15000.0,
+        bank_statement_period: int = 3,
     ) -> list[Session]:
         """Create multiple sessions for batch upload.
 
@@ -140,6 +144,7 @@ class SessionManager:
             student_folders: Dictionary mapping student names to their file lists.
             batch_id: Batch identifier to link sessions.
             financial_threshold: Financial threshold for all sessions.
+            bank_statement_period: Bank statement period for all sessions.
 
         Returns:
             List of created Session instances.
@@ -148,6 +153,7 @@ class SessionManager:
         for student_name, files in student_folders.items():
             session = self.create_session(
                 financial_threshold=financial_threshold,
+                bank_statement_period=bank_statement_period,
                 batch_id=batch_id,
                 student_name=student_name,
                 student_folder=student_name,

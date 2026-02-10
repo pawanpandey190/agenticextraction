@@ -1,5 +1,6 @@
 """Settings configuration for Master Orchestrator Agent."""
 
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from master_orchestrator.config.constants import ClassificationStrategy, OutputFormat
@@ -16,8 +17,11 @@ class Settings(BaseSettings):
     )
 
     # API Configuration
-    openai_api_key: str | None = None
-    model_name: str = "gpt-4o"
+    anthropic_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MO_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"),
+    )
+    model_name: str = "claude-sonnet-4-20250514"
 
     # Classification settings
     classification_strategy: ClassificationStrategy = ClassificationStrategy.HYBRID
@@ -44,18 +48,18 @@ class Settings(BaseSettings):
     pdf_render_workers: int = 4
 
     # Sub-agent API keys (optional - defaults to main key if not set)
-    fa_openai_api_key: str | None = None
-    ea_openai_api_key: str | None = None
-    pa_openai_api_key: str | None = None
+    fa_anthropic_api_key: str | None = None
+    ea_anthropic_api_key: str | None = None
+    pa_anthropic_api_key: str | None = None
 
     def get_financial_api_key(self) -> str:
         """Get API key for financial agent."""
-        return self.fa_openai_api_key or self.openai_api_key
+        return self.fa_anthropic_api_key or self.anthropic_api_key
 
     def get_education_api_key(self) -> str:
         """Get API key for education agent."""
-        return self.ea_openai_api_key or self.openai_api_key
+        return self.ea_anthropic_api_key or self.anthropic_api_key
 
     def get_passport_api_key(self) -> str:
         """Get API key for passport agent."""
-        return self.pa_openai_api_key or self.openai_api_key
+        return self.pa_anthropic_api_key or self.anthropic_api_key

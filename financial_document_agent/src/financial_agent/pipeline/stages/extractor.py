@@ -1,5 +1,8 @@
 """Financial data extraction stage."""
 
+import json
+from datetime import date, datetime
+
 from ...config.constants import CurrencyConfidence, DocumentType
 from ...config.settings import Settings
 from ...models.financial_data import Balance, Balances, FinancialData, StatementPeriod
@@ -44,7 +47,7 @@ class ExtractorStage(PipelineStage):
 
         try:
             # Build content for extraction
-            content = f"Document text:\n\n{context.extracted_text}\n\n{extraction_prompt}"
+            content_text = f"Document text:\n\n{context.extracted_text}\n\n{extraction_prompt}"
 
             # If we have an image, include it
             if context.first_page_base64 and context.first_page_mime_type:
@@ -59,14 +62,12 @@ class ExtractorStage(PipelineStage):
                     },
                     {
                         "type": "text",
-                        "text": content,
+                        "text": content_text,
                     },
                 ]
-
-                # Use raw API call for mixed content
-                result = self._extract_with_image(content_blocks)
+                result = self._extract(content_blocks)
             else:
-                result = self._extract_from_text(content)
+                result = self._extract(content_text)
 
             # Update financial data
             financial_data = self._build_financial_data(result, document_type)
@@ -94,81 +95,39 @@ class ExtractorStage(PipelineStage):
             self.logger.error("Extraction failed", error=str(e))
             raise ExtractionError(f"Failed to extract financial data: {e}") from e
 
-    def _extract_from_text(self, content: str) -> dict:
-        """Extract data using text-only approach.
+    def _extract(self, content: str | list) -> dict:
+        """Extract data using LLMService.
 
         Args:
-            content: Text content with extraction prompt
+            content: Text content or content blocks
 
         Returns:
             Extracted data dictionary
         """
-        import json
+        try:
+            # We use analyze_with_structured_output if possible, but here we need a dict
+            # The LLMService._extract_json can be used if we call the client directly
+            # or we can just use a dummy Pydantic model. 
+            # Actually, let's just call the client via a new method in LLMService if needed, 
+            # but since I already refactored LLMService, I'll use its internal client to stay consistent.
+            
+            response = self.llm_service.client.messages.create(
+                model=self.llm_service.model,
+                max_tokens=self.llm_service.max_tokens,
+                temperature=self.llm_service.temperature,
+                system=SYSTEM_PROMPT,
+                messages=[
+                    {"role": "user", "content": content}
+                ],
+            )
 
-        from openai import OpenAI
+            response_text = response.content[0].text if response.content else ""
+            json_str = self.llm_service._extract_json(response_text)
 
-        client = OpenAI(api_key=self.settings.openai_api_key.get_secret_value())
-
-        response = client.chat.completions.create(
-            model=self.settings.llm_model,
-            max_tokens=self.settings.llm_max_tokens,
-            temperature=self.settings.llm_temperature,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": content}
-            ],
-        )
-
-        response_text = response.choices[0].message.content
-        json_str = self.llm_service._extract_json(response_text)
-
-        return json.loads(json_str)
-
-    def _extract_with_image(self, content_blocks: list) -> dict:
-        """Extract data using image and text.
-
-        Args:
-            content_blocks: Content blocks including image
-
-        Returns:
-            Extracted data dictionary
-        """
-        import json
-
-        from openai import OpenAI
-
-        client = OpenAI(api_key=self.settings.openai_api_key.get_secret_value())
-
-        # Convert Anthropic-style content blocks to OpenAI format
-        messages_content = []
-        for block in content_blocks:
-            if block["type"] == "image":
-                messages_content.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{block['source']['media_type']};base64,{block['source']['data']}"
-                    }
-                })
-            elif block["type"] == "text":
-                messages_content.append({
-                    "type": "text",
-                    "text": block["text"]
-                })
-
-        response = client.chat.completions.create(
-            model=self.settings.llm_model,
-            max_tokens=self.settings.llm_max_tokens,
-            temperature=self.settings.llm_temperature,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": messages_content}
-            ],
-        )
-
-        response_text = response.choices[0].message.content
-        json_str = self.llm_service._extract_json(response_text)
-
-        return json.loads(json_str)
+            return json.loads(json_str)
+        except Exception as e:
+            self.logger.error("LLM extraction call failed", error=str(e))
+            raise ExtractionError(f"LLM extraction call failed: {e}")
 
     def _build_financial_data(self, result: dict, document_type: DocumentType) -> FinancialData:
         """Build FinancialData from extraction result.
@@ -213,7 +172,7 @@ class ExtractorStage(PipelineStage):
             balances=balances,
         )
 
-    def _parse_date(self, date_str: str | None) -> "date | None":
+    def _parse_date(self, date_str: str | None) -> date | None:
         """Parse a date string.
 
         Args:
@@ -224,8 +183,6 @@ class ExtractorStage(PipelineStage):
         """
         if not date_str:
             return None
-
-        from datetime import date, datetime
 
         try:
             return datetime.strptime(date_str, "%Y-%m-%d").date()

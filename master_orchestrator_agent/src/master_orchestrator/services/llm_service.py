@@ -1,11 +1,14 @@
-"""LLM Service for document classification using OpenAI vision."""
+"""LLM Service for document classification using Anthropic Claude vision."""
 
 import base64
 import json
 from pathlib import Path
+from typing import Any
+import io
 
 import structlog
-from openai import OpenAI
+from anthropic import Anthropic
+from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from master_orchestrator.config.settings import Settings
@@ -46,7 +49,14 @@ class LLMService:
             settings: Application settings containing API key and model name
         """
         self._settings = settings
-        self._client = OpenAI(api_key=settings.openai_api_key)
+        import os
+        # Bypass Pydantic settings and use os.environ directly like test.py
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip().strip('"').strip("'")
+        
+        self._client = Anthropic(api_key=api_key)
+        # Diagnostic
+        key_preview = f"{api_key[:12]}...{api_key[-5:]}" if api_key else "EMPTY"
+        logger.error("MASTER_LLM_DIAGNOSTIC", key_preview=key_preview, model=settings.model_name)
         self._model = settings.model_name
 
     @retry(
@@ -54,7 +64,7 @@ class LLMService:
         wait=wait_exponential(multiplier=1, min=2, max=10),
     )
     def classify_document(self, file_path: Path) -> ClassificationResult:
-        """Classify a document using OpenAI's vision capabilities.
+        """Classify a document using Anthropic's vision capabilities.
 
         Args:
             file_path: Path to the document file
@@ -67,17 +77,20 @@ class LLMService:
         # Read and encode the image/PDF
         image_data, media_type = self._prepare_image(file_path)
 
-        # Send to OpenAI for classification
-        response = self._client.chat.completions.create(
+        # Send to Anthropic for classification
+        response = self._client.messages.create(
             model=self._model,
+            max_tokens=500,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{media_type};base64,{image_data}",
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
                             },
                         },
                         {
@@ -87,18 +100,16 @@ class LLMService:
                     ],
                 }
             ],
-            max_tokens=500,
-            response_format={"type": "json_object"}
         )
 
         # Parse response
         return self._parse_classification_response(response)
 
     def _prepare_image(self, file_path: Path) -> tuple[str, str]:
-        """Prepare image data for OpenAI API.
+        """Prepare image data for Anthropic API with size optimization.
 
         For PDFs, converts first page to image.
-        For images, reads directly.
+        For images, reads directly and optimizes.
 
         Args:
             file_path: Path to the file
@@ -110,20 +121,16 @@ class LLMService:
 
         if extension == ".pdf":
             # Convert PDF first page to image
-            image_data, media_type = self._pdf_to_image(file_path)
+            return self._pdf_to_image(file_path)
         elif extension in {".png", ".jpg", ".jpeg"}:
-            # Read image directly
-            with open(file_path, "rb") as f:
-                image_bytes = f.read()
-            image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
-            media_type = "image/png" if extension == ".png" else "image/jpeg"
+            # Read image and optimize
+            img = Image.open(file_path)
+            return self._encode_and_optimize(img)
         else:
             raise ValueError(f"Unsupported file type: {extension}")
 
-        return image_data, media_type
-
     def _pdf_to_image(self, file_path: Path) -> tuple[str, str]:
-        """Convert PDF first page to image.
+        """Convert PDF first page to image and optimize.
 
         Args:
             file_path: Path to PDF file
@@ -131,40 +138,78 @@ class LLMService:
         Returns:
             Tuple of (base64_data, media_type)
         """
-        import io
-
         import pypdfium2 as pdfium
-        from PIL import Image
 
         # Open PDF and render first page
         with pdfium.PdfDocument(str(file_path)) as pdf:
             page = pdf[0]
-            # Render at 150 DPI for good quality while keeping size reasonable
+            # Render at 150 DPI for good quality
             bitmap = page.render(scale=150 / 72)
             pil_image = bitmap.to_pil()
 
-        # Convert to PNG bytes
-        img_buffer = io.BytesIO()
-        pil_image.save(img_buffer, format="PNG")
-        img_bytes = img_buffer.getvalue()
+        return self._encode_and_optimize(pil_image)
 
-        image_data = base64.standard_b64encode(img_bytes).decode("utf-8")
-        return image_data, "image/png"
+    def _encode_and_optimize(self, image: Image.Image, max_size: int = 3072 * 1024) -> tuple[str, str]:
+        """Encode image to base64 with size optimization. Target 3.0MB raw (approx 4.0MB base64)."""
+        # 1. Resize if too large (Claude limit)
+        MAX_DIM = 2048
+        w, h = image.size
+        print(f"DEBUG_MASTER: Optimizing image {w}x{h}")
+        if w > MAX_DIM or h > MAX_DIM:
+            scale = min(MAX_DIM / w, MAX_DIM / h)
+            image = image.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+            print(f"DEBUG_MASTER: Resized to {image.size} (limit: {MAX_DIM})")
 
-    def _parse_classification_response(self, response: object) -> ClassificationResult:
-        """Parse OpenAI's classification response.
+        # 2. Convert RGBA to RGB for JPEG
+        if image.mode == "RGBA":
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[3])
+            image = background
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # 3. Save as JPEG with quality reduction loop
+        quality = 85
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=quality)
+        
+        while buffer.tell() > max_size and quality > 30:
+            quality -= 10
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=quality)
+            print(f"DEBUG_MASTER: Quality reduction -> {quality}, size: {buffer.tell()} bytes")
+
+        # 4. Final resize fallback if still too large (Looping)
+        if buffer.tell() > max_size:
+            while buffer.tell() > max_size:
+                # Reduce dimensions by 20% each step
+                w, h = image.size
+                if w < 100 or h < 100: break # Safety break
+                image = image.resize((int(w * 0.8), int(h * 0.8)), Image.Resampling.LANCZOS)
+                buffer = io.BytesIO()
+                image.save(buffer, format="JPEG", quality=70)
+                print(f"DEBUG_MASTER: Iterative resize -> {image.size}, size: {buffer.tell()} bytes")
+
+        image_data = base64.standard_b64encode(buffer.getvalue()).decode("utf-8")
+        print(f"DEBUG_MASTER: Final base64 size approx: {len(image_data)} bytes")
+        return image_data, "image/jpeg"
+
+    def _parse_classification_response(self, response: Any) -> ClassificationResult:
+        """Parse Anthropic's classification response.
 
         Args:
-            response: Response from OpenAI API
+            response: Response from Anthropic API
 
         Returns:
             ClassificationResult
         """
         try:
             # Extract text content from response
-            content = response.choices[0].message.content
+            content = response.content[0].text if response.content else ""
 
-            data = json.loads(content)
+            # Try to extract JSON from the response
+            json_str = self._extract_json(content)
+            data = json.loads(json_str)
 
             # Map category string to enum
             category_str = data.get("category", "UNKNOWN").upper()
@@ -194,3 +239,42 @@ class LLMService:
             "EDUCATION": DocumentCategory.EDUCATION,
         }
         return mapping.get(category_str, DocumentCategory.UNKNOWN)
+
+    def _extract_json(self, text: str) -> str:
+        """Extract JSON from a text response.
+
+        Args:
+            text: Response text that may contain JSON
+
+        Returns:
+            Extracted JSON string
+        """
+        # Try to find JSON in code blocks
+        if "```json" in text:
+            start = text.find("```json") + 7
+            end = text.find("```", start)
+            if end > start:
+                return text[start:end].strip()
+
+        if "```" in text:
+            start = text.find("```") + 3
+            end = text.find("```", start)
+            if end > start:
+                return text[start:end].strip()
+
+        # Try to find JSON object or array
+        for start_char, end_char in [("{", "}"), ("[", "]")]:
+            start = text.find(start_char)
+            if start != -1:
+                # Find matching end
+                depth = 0
+                for i, char in enumerate(text[start:], start):
+                    if char == start_char:
+                        depth += 1
+                    elif char == end_char:
+                        depth -= 1
+                        if depth == 0:
+                            return text[start : i + 1]
+
+        # Return as-is if no JSON found
+        return text.strip()

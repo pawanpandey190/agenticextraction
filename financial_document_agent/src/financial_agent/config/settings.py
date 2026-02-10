@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import OCRStrategy
@@ -19,16 +19,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # OpenAI API Configuration
-    openai_api_key: SecretStr | None = Field(
+    # Anthropic API Configuration
+    anthropic_api_key: SecretStr | None = Field(
         default=None,
-        description="OpenAI API key for GPT-4o access",
+        validation_alias=AliasChoices("FA_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"),
+        description="Anthropic API key for Claude access",
     )
 
     # LLM Model Configuration
     llm_model: str = Field(
-        default="gpt-4o",
-        description="OpenAI model to use for analysis",
+        default="claude-sonnet-4-20250514",
+        description="Model to use for analysis",
     )
     llm_max_tokens: int = Field(
         default=4096,
@@ -43,7 +44,7 @@ class Settings(BaseSettings):
 
     # OCR Configuration
     ocr_strategy: OCRStrategy = Field(
-        default=OCRStrategy.OPENAI_VISION,
+        default=OCRStrategy.ANTHROPIC_VISION,
         description="OCR strategy to use",
     )
 

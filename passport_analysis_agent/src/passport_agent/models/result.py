@@ -46,6 +46,11 @@ class PassportAnalysisResult(BaseModel):
         default_factory=list, description="List of warnings from processing"
     )
 
+    # Assessment summary
+    remarks: str = Field(
+        default="", description="Summary of analysis results and justifications"
+    )
+
     # Metadata
     source_file: str | None = Field(
         default=None, description="Path to source file processed"

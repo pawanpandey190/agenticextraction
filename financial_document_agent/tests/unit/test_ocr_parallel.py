@@ -8,7 +8,7 @@ import pytest
 from PIL import Image
 
 from financial_agent.config.settings import Settings
-from financial_agent.services.ocr_service import OpenAIVisionOCR, create_ocr_service
+from financial_agent.services.ocr_service import AnthropicVisionOCR, create_ocr_service
 from financial_agent.utils.exceptions import OCRError
 
 
@@ -21,8 +21,8 @@ def create_test_image() -> tuple[bytes, str]:
     return buffer.read(), "image/png"
 
 
-class TestOpenAIVisionOCRParallel:
-    """Tests for parallel OCR processing in OpenAIVisionOCR."""
+class TestAnthropicVisionOCRParallel:
+    """Tests for parallel OCR processing in AnthropicVisionOCR."""
 
     @pytest.fixture
     def mock_llm_service(self):
@@ -33,7 +33,7 @@ class TestOpenAIVisionOCRParallel:
 
     def test_single_page_no_parallelization(self, mock_llm_service):
         """Test that single page doesn't use parallelization."""
-        ocr = OpenAIVisionOCR(mock_llm_service, max_workers=4)
+        ocr = AnthropicVisionOCR(mock_llm_service, max_workers=4)
         images = [create_test_image()]
 
         result = ocr.extract_text_from_multiple(images)
@@ -44,7 +44,7 @@ class TestOpenAIVisionOCRParallel:
 
     def test_multiple_pages_parallel(self, mock_llm_service):
         """Test that multiple pages are processed in parallel."""
-        ocr = OpenAIVisionOCR(mock_llm_service, max_workers=4)
+        ocr = AnthropicVisionOCR(mock_llm_service, max_workers=4)
         images = [create_test_image() for _ in range(5)]
 
         result = ocr.extract_text_from_multiple(images)
@@ -67,7 +67,7 @@ class TestOpenAIVisionOCRParallel:
 
         mock_llm_service.extract_text_from_image.side_effect = side_effect
 
-        ocr = OpenAIVisionOCR(mock_llm_service, max_workers=4)
+        ocr = AnthropicVisionOCR(mock_llm_service, max_workers=4)
         images = [create_test_image() for _ in range(10)]
 
         result = ocr.extract_text_from_multiple(images)
@@ -94,7 +94,7 @@ class TestOpenAIVisionOCRParallel:
 
         mock_llm_service.extract_text_from_image.side_effect = side_effect
 
-        ocr = OpenAIVisionOCR(mock_llm_service, max_workers=4)
+        ocr = AnthropicVisionOCR(mock_llm_service, max_workers=4)
         images = [create_test_image() for _ in range(5)]
 
         result = ocr.extract_text_from_multiple(images)
@@ -107,7 +107,7 @@ class TestOpenAIVisionOCRParallel:
 
     def test_empty_images_list(self, mock_llm_service):
         """Test handling of empty images list."""
-        ocr = OpenAIVisionOCR(mock_llm_service, max_workers=4)
+        ocr = AnthropicVisionOCR(mock_llm_service, max_workers=4)
 
         result = ocr.extract_text_from_multiple([])
 
@@ -137,7 +137,7 @@ class TestOpenAIVisionOCRParallel:
     def test_extract_single_page_failure(self, mock_llm_service):
         """Test _extract_single_page helper method on failure."""
         mock_llm_service.extract_text_from_image.side_effect = OCRError("Test error")
-        ocr = OpenAIVisionOCR(mock_llm_service, max_workers=4)
+        ocr = AnthropicVisionOCR(mock_llm_service, max_workers=4)
         image_bytes, mime_type = create_test_image()
 
         page_index, text = ocr._extract_single_page(1, image_bytes, mime_type)
@@ -153,8 +153,8 @@ class TestCreateOCRService:
     def mock_settings(self):
         """Create mock settings for testing."""
         with patch.dict(os.environ, {
-            "FA_OPENAI_API_KEY": "test-api-key",
-            "FA_LLM_MODEL": "gpt-4o",
+            "FA_ANTHROPIC_API_KEY": "test-api-key",
+            "FA_LLM_MODEL": "claude-3-sonnet-20240229",
             "FA_OCR_MAX_WORKERS": "6",
         }):
             return Settings()
@@ -170,8 +170,8 @@ class TestCreateOCRService:
     def test_factory_default_max_workers(self):
         """Test that factory uses default max_workers from settings."""
         with patch.dict(os.environ, {
-            "FA_OPENAI_API_KEY": "test-api-key",
-            "FA_LLM_MODEL": "gpt-4o",
+            "FA_ANTHROPIC_API_KEY": "test-api-key",
+            "FA_LLM_MODEL": "claude-3-sonnet-20240229",
         }):
             settings = Settings()
 

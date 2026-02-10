@@ -52,11 +52,11 @@ class OCRService(ABC):
         pass
 
 
-class OpenAIVisionOCR(OCRService):
-    """OCR implementation using OpenAI Vision API."""
+class AnthropicVisionOCR(OCRService):
+    """OCR implementation using Anthropic Claude Vision API."""
 
     def __init__(self, llm_service: LLMService, max_workers: int = 4) -> None:
-        """Initialize OpenAI Vision OCR.
+        """Initialize Anthropic Vision OCR.
 
         Args:
             llm_service: LLM service instance
@@ -66,7 +66,7 @@ class OpenAIVisionOCR(OCRService):
         self.max_workers = max_workers
 
     def extract_text(self, image_bytes: bytes, mime_type: str) -> str:
-        """Extract text using OpenAI Vision.
+        """Extract text using Anthropic Claude Vision.
 
         Args:
             image_bytes: Raw image bytes
@@ -83,20 +83,19 @@ class OpenAIVisionOCR(OCRService):
             image = bytes_to_image(image_bytes)
             image = resize_image_if_needed(image)
 
-            # Determine format from mime type
-            format = "PNG" if "png" in mime_type else "JPEG"
-            base64_data, actual_mime = encode_image_base64(image, format=format)
+            # Encode to base64 with size management
+            base64_data, actual_mime = encode_image_base64(image)
 
             text = self.llm_service.extract_text_from_image(
                 base64_data, actual_mime, image_bytes=image_bytes
             )
-            logger.debug("OpenAI Vision OCR completed", text_length=len(text))
+            logger.debug("Anthropic Vision OCR completed", text_length=len(text))
 
             return text
 
         except Exception as e:
-            logger.error("OpenAI Vision OCR failed", error=str(e))
-            raise OCRError(f"OpenAI Vision OCR failed: {e}") from e
+            logger.error("Anthropic Vision OCR failed", error=str(e))
+            raise OCRError(f"Anthropic Vision OCR failed: {e}") from e
 
     def _extract_single_page(
         self,
@@ -245,7 +244,7 @@ class TesseractOCR(OCRService):
 
 
 class AutoOCR(OCRService):
-    """OCR service that tries OpenAI Vision first, then falls back to Tesseract."""
+    """OCR service that tries Anthropic Claude Vision first, then falls back to Tesseract."""
 
     def __init__(self, llm_service: LLMService, max_workers: int = 4) -> None:
         """Initialize Auto OCR.
@@ -254,7 +253,7 @@ class AutoOCR(OCRService):
             llm_service: LLM service for Claude Vision
             max_workers: Maximum concurrent OCR API calls
         """
-        self.openai_ocr = OpenAIVisionOCR(llm_service, max_workers=max_workers)
+        self.anthropic_ocr = AnthropicVisionOCR(llm_service, max_workers=max_workers)
         self._tesseract_ocr: TesseractOCR | None = None
 
     @property
@@ -268,7 +267,7 @@ class AutoOCR(OCRService):
         return self._tesseract_ocr
 
     def extract_text(self, image_bytes: bytes, mime_type: str) -> str:
-        """Extract text, trying OpenAI Vision first.
+        """Extract text, trying Anthropic Claude Vision first.
 
         Args:
             image_bytes: Raw image bytes
@@ -281,19 +280,19 @@ class AutoOCR(OCRService):
             OCRError: If all OCR methods fail
         """
         try:
-            return self.openai_ocr.extract_text(image_bytes, mime_type)
-        except OCRError as openai_error:
-            logger.warning("OpenAI Vision failed, trying Tesseract", error=str(openai_error))
+            return self.anthropic_ocr.extract_text(image_bytes, mime_type)
+        except OCRError as anthropic_error:
+            logger.warning("Anthropic Claude Vision failed, trying Tesseract", error=str(anthropic_error))
 
             if self.tesseract_ocr:
                 try:
                     return self.tesseract_ocr.extract_text(image_bytes, mime_type)
                 except OCRError as tesseract_error:
                     raise OCRError(
-                        f"All OCR methods failed. OpenAI: {openai_error}, Tesseract: {tesseract_error}"
+                        f"All OCR methods failed. Anthropic: {anthropic_error}, Tesseract: {tesseract_error}"
                     )
 
-            raise OCRError(f"OpenAI Vision failed and Tesseract not available: {openai_error}")
+            raise OCRError(f"Anthropic Claude Vision failed and Tesseract not available: {anthropic_error}")
 
     def extract_text_from_multiple(
         self,
@@ -311,16 +310,16 @@ class AutoOCR(OCRService):
             OCRError: If extraction fails
         """
         try:
-            return self.openai_ocr.extract_text_from_multiple(images)
-        except OCRError as openai_error:
-            logger.warning("OpenAI Vision failed for batch, trying Tesseract")
+            return self.anthropic_ocr.extract_text_from_multiple(images)
+        except OCRError as anthropic_error:
+            logger.warning("Anthropic Claude Vision failed for batch, trying Tesseract")
 
             if self.tesseract_ocr:
                 try:
                     return self.tesseract_ocr.extract_text_from_multiple(images)
                 except OCRError as tesseract_error:
                     raise OCRError(
-                        f"All OCR methods failed for batch. OpenAI: {openai_error}, Tesseract: {tesseract_error}"
+                        f"All OCR methods failed for batch. Anthropic: {anthropic_error}, Tesseract: {tesseract_error}"
                     )
 
             raise
@@ -351,8 +350,8 @@ def create_ocr_service(
     if llm_service is None:
         llm_service = LLMService(settings)
 
-    if strategy == OCRStrategy.OPENAI_VISION:
-        return OpenAIVisionOCR(llm_service, max_workers=max_workers)
+    if strategy == OCRStrategy.ANTHROPIC_VISION:
+        return AnthropicVisionOCR(llm_service, max_workers=max_workers)
 
     # Auto strategy
     return AutoOCR(llm_service, max_workers=max_workers)

@@ -39,7 +39,7 @@ class WorthinessDecision(str, Enum):
 class OCRStrategy(str, Enum):
     """OCR strategy options."""
 
-    OPENAI_VISION = "openai_vision"
+    ANTHROPIC_VISION = "anthropic_vision"
     TESSERACT = "tesseract"
     AUTO = "auto"
 

@@ -33,6 +33,8 @@ interface BackendPassportDetails {
     checksum_valid?: boolean | null;
   };
   accuracy_score?: number;
+  confidence_level?: string;
+  remarks?: string;
 }
 
 interface BackendFinancialSummary {
@@ -85,7 +87,9 @@ function transformResult(backend: BackendAnalysisResult): AnalysisResult {
     expiry_date: backend.passport_details.expiry_date || null,
     mrz_line1: backend.passport_details.mrz_data?.raw_line1 || null,
     mrz_line2: backend.passport_details.mrz_data?.raw_line2 || null,
-    accuracy_score: backend.passport_details.accuracy_score || null,
+    accuracy_score: backend.passport_details.accuracy_score ?? 0,
+    confidence_level: backend.passport_details.confidence_level || null,
+    remarks: backend.passport_details.remarks || null,
   } : null;
 
   const financial: FinancialSummary | null = backend.financial_summary ? {
@@ -96,7 +100,7 @@ function transformResult(backend: BackendAnalysisResult): AnalysisResult {
     amount_original: backend.financial_summary.amount_original || null,
     amount_eur: backend.financial_summary.amount_eur || null,
     worthiness_status: backend.financial_summary.worthiness_status || null,
-    remarks: backend.financial_summary.remarks ? [backend.financial_summary.remarks] : null,
+    remarks: backend.financial_summary.remarks || null,
   } : null;
 
   const education: EducationSummary | null = backend.education_summary ? {
@@ -105,16 +109,16 @@ function transformResult(backend: BackendAnalysisResult): AnalysisResult {
     country: backend.education_summary.country || null,
     student_name: backend.education_summary.student_name || null,
     final_grade_original: backend.education_summary.final_grade_original || null,
-    french_equivalent_grade_0_20: backend.education_summary.french_equivalent_grade_0_20 || null,
+    french_equivalent_grade_0_20: backend.education_summary.french_equivalent_grade_0_20 ?? null,
     validation_status: backend.education_summary.validation_status || null,
-    remarks: backend.education_summary.remarks ? [backend.education_summary.remarks] : null,
+    remarks: backend.education_summary.remarks || null,
   } : null;
 
   const crossValidation: CrossValidation | null = backend.cross_validation ? {
     name_match: backend.cross_validation.name_match ?? null,
     name_match_score: backend.cross_validation.name_match_score || null,
     dob_match: backend.cross_validation.dob_match ?? null,
-    remarks: backend.cross_validation.remarks ? [backend.cross_validation.remarks] : null,
+    remarks: backend.cross_validation.remarks || null,
   } : null;
 
   const metadata: ProcessingMetadata = backend.metadata || {
@@ -156,10 +160,13 @@ class ApiClient {
   }
 
   // Session endpoints
-  async createSession(financialThreshold: number = 15000): Promise<CreateSessionResponse> {
+  async createSession(financialThreshold: number = 15000, bankStatementPeriod: number = 3): Promise<CreateSessionResponse> {
     return this.request<CreateSessionResponse>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ financial_threshold: financialThreshold }),
+      body: JSON.stringify({
+        financial_threshold: financialThreshold,
+        bank_statement_period: bankStatementPeriod
+      }),
     });
   }
 
@@ -289,7 +296,8 @@ class ApiClient {
   // Batch upload endpoints
   async uploadBatchFolders(
     files: File[],
-    financialThreshold: number = 15000
+    financialThreshold: number = 15000,
+    bankStatementPeriod: number = 3
   ): Promise<BatchUploadResponse> {
     const formData = new FormData();
     files.forEach(file => {
@@ -299,7 +307,7 @@ class ApiClient {
     });
 
     const response = await fetch(
-      `${API_BASE}/batches/upload?financial_threshold=${financialThreshold}`,
+      `${API_BASE}/batches/upload?financial_threshold=${financialThreshold}&bank_statement_period=${bankStatementPeriod}`,
       {
         method: 'POST',
         body: formData,

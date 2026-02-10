@@ -31,6 +31,7 @@ class Session(BaseModel):
 
     # Processing config
     financial_threshold: float = 15000.0
+    bank_statement_period: int = 3
 
     # Batch upload support (optional fields for backward compatibility)
     batch_id: str | None = None  # Links to batch if part of batch upload

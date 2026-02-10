@@ -86,6 +86,8 @@ class MasterOrchestrator:
         input_folder: str | Path,
         output_dir: str | Path | None = None,
         output_format: OutputFormat | None = None,
+        bank_statement_months: int | None = None,
+        financial_threshold: float | None = None,
     ) -> MasterAnalysisResult:
         """Process all documents in a folder.
 
@@ -93,7 +95,7 @@ class MasterOrchestrator:
             input_folder: Path to folder containing documents
             output_dir: Optional path to output directory for JSON/Excel files
             output_format: Output format (json, excel, or both)
-
+            bank_statement_months: Optional required bank statement period in months
         Returns:
             MasterAnalysisResult containing all analysis results
 
@@ -114,6 +116,8 @@ class MasterOrchestrator:
         context = MasterPipelineContext(
             input_folder=input_path,
             settings=self._settings,
+            bank_statement_months=bank_statement_months,
+            financial_threshold=financial_threshold,
         )
 
         # Initialize stages
@@ -179,6 +183,8 @@ class MasterOrchestrator:
         input_folder: str | Path,
         output_dir: str | Path | None = None,
         output_format: OutputFormat | None = None,
+        bank_statement_months: int | None = None,
+        financial_threshold: float | None = None,
     ) -> tuple[MasterAnalysisResult, MasterPipelineContext]:
         """Process documents and return both result and context.
 
@@ -188,7 +194,7 @@ class MasterOrchestrator:
             input_folder: Path to folder containing documents
             output_dir: Optional path to output directory
             output_format: Output format
-
+            bank_statement_months: Optional required bank statement period in months
         Returns:
             Tuple of (MasterAnalysisResult, MasterPipelineContext)
         """
@@ -199,6 +205,8 @@ class MasterOrchestrator:
         context = MasterPipelineContext(
             input_folder=input_path,
             settings=self._settings,
+            bank_statement_months=bank_statement_months,
+            financial_threshold=financial_threshold,
         )
 
         self._initialize_stages(output_path, output_format)

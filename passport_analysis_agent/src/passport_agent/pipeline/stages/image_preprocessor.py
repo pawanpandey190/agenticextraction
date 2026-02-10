@@ -49,7 +49,7 @@ class ImagePreprocessorStage(PipelineStage):
             )
 
             # Encode back to base64
-            base64_data, mime_type = encode_image_base64(processed, format="PNG")
+            base64_data, mime_type = encode_image_base64(processed)
             preprocessed_images.append((base64_data, mime_type))
 
             self.logger.debug(

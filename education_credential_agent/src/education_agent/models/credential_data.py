@@ -22,7 +22,7 @@ class Institution(BaseModel):
 class GradeInfo(BaseModel):
     """Grade information with conversion details."""
 
-    original_value: str = Field(..., description="Original grade as displayed on document")
+    original_value: str | None = Field(default=None, description="Original grade as displayed on document")
     numeric_value: float | None = Field(
         default=None,
         description="Numeric representation of the grade",

@@ -40,20 +40,24 @@ def resize_image_if_needed(
 
 def encode_image_base64(
     image: Image.Image,
-    format: str = "PNG",
-    quality: int = 95,
+    format: str = "JPEG",
+    quality: int = 85,
+    max_size: int = 2867 * 1024,  # 2.8MB target for raw bytes to stay very safely under 5MB base64
 ) -> tuple[str, str]:
-    """Encode a PIL Image to base64 string.
+    """Encode a PIL Image to base64 string with size management.
 
     Args:
         image: PIL Image object
-        format: Output format (PNG or JPEG)
-        quality: JPEG quality (1-100)
+        format: Output format (PNG or JPEG). Defaults to JPEG for size.
+        quality: JPEG compression quality (1-100)
+        max_size: Maximum raw byte size before reducing quality/resolution
 
     Returns:
         Tuple of (base64_string, mime_type)
     """
-    buffer = io.BytesIO()
+    # Resize if any dimension is too large for Claude
+    print(f"DEBUG: Encoding image {image.size}, current size unknown")
+    image = resize_image_if_needed(image)
 
     # Convert RGBA to RGB for JPEG
     if format.upper() == "JPEG" and image.mode == "RGBA":
@@ -61,13 +65,35 @@ def encode_image_base64(
         background.paste(image, mask=image.split()[3])
         image = background
 
+    buffer = io.BytesIO()
+    
+    # Try saving with initial quality
     save_kwargs: dict = {"format": format}
     if format.upper() == "JPEG":
         save_kwargs["quality"] = quality
-
+    
     image.save(buffer, **save_kwargs)
-    buffer.seek(0)
+    
+    # If still too large, iteratively reduce quality if JPEG
+    if buffer.tell() > max_size and format.upper() == "JPEG":
+        current_quality = quality
+        while buffer.tell() > max_size and current_quality > 30:
+            current_quality -= 10
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=current_quality)
+            
+    # Final backup: If still too large, resize iteratively
+    if buffer.tell() > max_size:
+        while buffer.tell() > max_size:
+            # Reduce dimensions by 20% each step
+            width, height = image.size
+            if width < 100 or height < 100: break # Safety break
+            image = image.resize((int(width * 0.8), int(height * 0.8)), Image.Resampling.LANCZOS)
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=75)
+            print(f"DEBUG: Resized to {image.size}, new size: {buffer.tell()} bytes")
 
+    buffer.seek(0)
     base64_data = base64.standard_b64encode(buffer.read()).decode("utf-8")
     mime_type = f"image/{format.lower()}"
 

@@ -8,6 +8,7 @@ export function BatchUploadPage() {
     const navigate = useNavigate();
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [financialThreshold, setFinancialThreshold] = useState(15000);
+    const [bankStatementPeriod, setBankStatementPeriod] = useState(3);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +28,7 @@ export function BatchUploadPage() {
 
         try {
             // Step 1: Upload batch folders
-            const response = await api.uploadBatchFolders(selectedFiles, financialThreshold);
+            const response = await api.uploadBatchFolders(selectedFiles, financialThreshold, bankStatementPeriod);
 
             // Step 2: Automatically start processing for each student
             const processingPromises = response.sessions.map(async (session) => {
@@ -51,115 +52,151 @@ export function BatchUploadPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="max-w-4xl mx-auto py-8 px-4">
-                {/* Header */}
-                <div className="mb-6">
+        <div className="max-w-5xl mx-auto py-12 px-4 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-4">
                     <button
                         onClick={() => navigate('/')}
-                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+                        className="flex items-center gap-2 text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] hover:text-brand-primary/80 transition-all mb-4 group"
                     >
-                        <ArrowLeft className="w-5 h-5" />
-                        Back to Home
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Back to Portal
                     </button>
-                    <h1 className="text-3xl font-bold text-gray-900">Batch Student Upload</h1>
-                    <p className="text-gray-600 mt-2">
-                        Upload folders containing documents for multiple students
+                    <h1 className="text-4xl font-black tracking-tight text-slate-900 sm:text-6xl flex flex-col">
+                        <span className="text-brand-primary opacity-50 uppercase text-xs tracking-[0.4em] font-black mb-2 px-1">Mass Ingestion</span>
+                        Batch <span className="text-brand-primary">Upload</span>
+                    </h1>
+                    <p className="text-lg text-slate-500 font-medium max-w-2xl leading-relaxed">
+                        Securely pipeline multiple student directories for parallel automated analysis.
                     </p>
                 </div>
+            </div>
 
-                {/* Important Instructions */}
-                <div className="mb-6 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                        <AlertCircle className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <div>
-                            <h3 className="font-semibold text-blue-900 mb-2">📁 How to Upload Multiple Students</h3>
-                            <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+            {/* Protocol Instructions */}
+            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-xl shadow-slate-200/50">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 bg-brand-primary/10 rounded-2xl">
+                        <AlertCircle className="w-6 h-6 text-brand-primary flex-shrink-0" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">Ingestion Protocol</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <ol className="text-sm text-slate-600 space-y-4 list-decimal list-inside font-medium leading-relaxed">
                                 <li>
-                                    <strong>Organize files:</strong> Create a parent folder (e.g., "Batch_Upload") containing one subfolder per student
+                                    <strong className="text-slate-900">Structure Matrix:</strong> Create a primary directory (e.g., "Batch_Queue") with sub-directories per student.
                                 </li>
                                 <li>
-                                    <strong>Click upload area below:</strong> Select the <strong>parent folder</strong> (not individual student folders)
+                                    <strong className="text-slate-900">Define Scope:</strong> Target the <strong>primary directory</strong> when prompted in the ingestion area below.
                                 </li>
                                 <li>
-                                    <strong>Review:</strong> Check that all students are detected correctly
+                                    <strong className="text-slate-900">Verify Mapping:</strong> Ensure all student nodes are correctly mapped by the system.
                                 </li>
                                 <li>
-                                    <strong>Upload:</strong> Click "Upload and Process Batch" to start
+                                    <strong className="text-slate-900">Execute:</strong> Click "Initiate Batch Pipeline" to begin automated processing.
                                 </li>
                             </ol>
-                            <div className="mt-3 p-2 bg-white border border-blue-200 rounded">
-                                <p className="text-xs text-blue-900 font-mono">
-                                    Batch_Upload/ ← Select THIS folder<br />
-                                    ├── John_Doe/<br />
-                                    │   ├── passport.pdf<br />
-                                    │   └── degree.pdf<br />
-                                    └── Jane_Smith/<br />
-                                    &nbsp;&nbsp;&nbsp;&nbsp;├── passport.pdf<br />
-                                    &nbsp;&nbsp;&nbsp;&nbsp;└── degree.pdf
+                            <div className="p-4 bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl">
+                                <p className="text-[10px] text-brand-primary font-mono leading-loose">
+                                    <span className="opacity-50 text-slate-500">ROOT/</span> Batch_Upload/ <span className="text-slate-400">← INGEST THIS</span><br />
+                                    <span className="opacity-30 text-slate-600">├──</span> John_Doe/<br />
+                                    <span className="opacity-30 text-slate-600">│&nbsp;&nbsp;&nbsp;├──</span> passport.pdf<br />
+                                    <span className="opacity-30 text-slate-600">│&nbsp;&nbsp;&nbsp;└──</span> degree.pdf<br />
+                                    <span className="opacity-30 text-slate-600">└──</span> Jane_Smith/<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="opacity-30 text-slate-600">├──</span> passport.pdf<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="opacity-30 text-slate-600">└──</span> degree.pdf
                                 </p>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-                        <p className="text-red-800">{error}</p>
+            {/* Error Message */}
+            {error && (
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-5 flex items-center gap-3 shadow-sm">
+                    <div className="p-1 rounded-lg bg-red-100/50">
+                        <AlertCircle className="w-5 h-5 text-red-600" />
                     </div>
-                )}
-
-                {/* Upload Section */}
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                    <FolderUpload
-                        onFilesSelected={handleFilesSelected}
-                        disabled={isUploading}
-                    />
+                    <p className="text-red-700 font-medium text-sm">{error}</p>
                 </div>
+            )}
 
-                {/* Configuration */}
-                <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Configuration</h3>
+            {/* Ingestion Matrix */}
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-2 overflow-hidden">
+                <FolderUpload
+                    onFilesSelected={handleFilesSelected}
+                    disabled={isUploading}
+                />
+            </div>
+
+            {/* Configuration Interface */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 space-y-6">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic mb-2">Threshold Config</h3>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Financial Worthiness Threshold (EUR)
+                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3 px-1">
+                            Financial Magnitude (EUR)
                         </label>
                         <input
                             type="number"
                             value={financialThreshold}
                             onChange={(e) => setFinancialThreshold(Number(e.target.value))}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-slate-900 font-bold font-mono transition-all"
                             min={0}
                             step={1000}
                             disabled={isUploading}
                         />
-                        <p className="mt-2 text-sm text-gray-500">
-                            Documents with amounts above this threshold will be marked as financially worthy
+                        <p className="mt-4 text-xs text-slate-400 font-medium leading-relaxed italic">
+                            Students exceeding this liquidity ceiling will satisfy financial requirements.
                         </p>
                     </div>
                 </div>
 
-                {/* Upload Button */}
+                <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 space-y-6">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic mb-2">Temporal Logic</h3>
+                    <div>
+                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3 px-1">
+                            Minimal Period (Months)
+                        </label>
+                        <input
+                            type="number"
+                            value={bankStatementPeriod}
+                            onChange={(e) => setBankStatementPeriod(Number(e.target.value))}
+                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-slate-900 font-bold font-mono transition-all"
+                            min={1}
+                            max={12}
+                            step={1}
+                            disabled={isUploading}
+                        />
+                        <p className="mt-4 text-xs text-slate-400 font-medium leading-relaxed italic">
+                            Required temporal breadth for bank records to achieve verification integrity.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="space-y-4">
                 <button
                     onClick={handleUpload}
                     disabled={selectedFiles.length === 0 || isUploading}
                     className={`
-            w-full py-4 px-6 text-lg font-medium rounded-lg transition-colors flex items-center justify-center gap-2
-            ${selectedFiles.length > 0 && !isUploading
-                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        w-full py-6 px-8 text-xs font-black uppercase tracking-[0.3em] rounded-2xl transition-all flex items-center justify-center gap-3 shadow-2xl
+                        ${selectedFiles.length > 0 && !isUploading
+                            ? 'bg-brand-primary text-white hover:bg-brand-primary/90 shadow-brand-primary/20 hover:scale-[1.02] active:scale-95'
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                         }
-          `}
+                    `}
                 >
                     <Upload className="w-5 h-5" />
-                    {isUploading ? 'Uploading and Starting Processing...' : 'Upload and Process Batch'}
+                    {isUploading ? 'Executing Mass Pipeline...' : 'Initiate Batch Pipeline'}
                 </button>
 
-                {/* Processing Info */}
-                <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
-                    <p className="text-sm text-green-800">
-                        ✅ <strong>Auto-processing enabled:</strong> All students will automatically start processing after upload
+                <div className="flex items-center justify-center gap-2 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">
+                        Autonomous Processing Engaged: All nodes will auto-initiate post-ingestion
                     </p>
                 </div>
             </div>

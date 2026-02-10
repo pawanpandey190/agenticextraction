@@ -24,6 +24,8 @@ class MasterPipelineContext:
     # Input
     input_folder: Path
     settings: Settings
+    bank_statement_months: int | None = None
+    financial_threshold: float | None = None
 
     # Stage 1: Scanned documents
     scanned_documents: list[DocumentInfo] = field(default_factory=list)

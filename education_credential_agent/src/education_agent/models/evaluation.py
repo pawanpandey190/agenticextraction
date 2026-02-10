@@ -101,6 +101,7 @@ class AnalysisResult(BaseModel):
         default=None,
         description="Highest qualification found",
     )
+    student_name: str | None = Field(default=None, description="Student name extracted from documents")
     evaluation: EvaluationResult = Field(
         default_factory=EvaluationResult,
         description="Evaluation results",

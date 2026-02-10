@@ -19,7 +19,8 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 async def create_session(request: CreateSessionRequest = CreateSessionRequest()):
     """Create a new processing session."""
     session = session_manager.create_session(
-        financial_threshold=request.financial_threshold
+        financial_threshold=request.financial_threshold,
+        bank_statement_period=request.bank_statement_period
     )
     return CreateSessionResponse(
         session_id=session.id,
@@ -41,6 +42,7 @@ async def list_sessions():
             uploaded_files=s.uploaded_files,
             total_files=s.total_files,
             financial_threshold=s.financial_threshold,
+            bank_statement_period=s.bank_statement_period,
             result_available=s.result_available,
             letter_available=s.letter_available,
             error_message=s.error_message,
@@ -72,6 +74,7 @@ async def get_session(session_id: str):
         uploaded_files=session.uploaded_files,
         total_files=session.total_files,
         financial_threshold=session.financial_threshold,
+        bank_statement_period=session.bank_statement_period,
         result_available=session.result_available,
         letter_available=session.letter_available,
         error_message=session.error_message,
@@ -155,6 +158,7 @@ async def get_batch_sessions(batch_id: str):
             uploaded_files=s.uploaded_files,
             total_files=s.total_files,
             financial_threshold=s.financial_threshold,
+            bank_statement_period=s.bank_statement_period,
             result_available=s.result_available,
             letter_available=s.letter_available,
             error_message=s.error_message,

@@ -9,27 +9,39 @@ import { Link } from 'react-router-dom';
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-brand-primary/10 mesh-gradient relative overflow-x-hidden">
+      {/* Dynamic Background Elements - Simplified for Light Theme */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+        <div className="absolute top-[-5%] left-[-5%] w-[30%] h-[30%] bg-brand-primary/5 blur-[100px] rounded-full"></div>
+      </div>
+
       {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 border-b border-slate-200 backdrop-blur-md shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-              <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h1 className="text-xl font-semibold text-gray-900">Document Analysis</h1>
+            <Link to="/" className="flex items-center space-x-3 group transition-all">
+              <div className="p-2 rounded-xl bg-brand-primary shadow-sm shadow-brand-primary/20 group-hover:scale-105 transition-transform">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h1 className="text-xl font-bold text-slate-900">
+                Document Analysis
+              </h1>
             </Link>
 
-            <nav className="flex items-center space-x-6">
-              <Link to="/" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">
+            <nav className="flex items-center space-x-8">
+              <Link to="/" className="text-sm font-medium text-slate-600 hover:text-brand-primary transition-colors relative group">
                 New Analysis
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-primary transition-all group-hover:w-full"></span>
               </Link>
-              <Link to="/batch-upload" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">
+              <Link to="/batch-upload" className="text-sm font-medium text-slate-600 hover:text-brand-primary transition-colors relative group">
                 Batch Upload
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-primary transition-all group-hover:w-full"></span>
               </Link>
-              <Link to="/history" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1">
+              <Link to="/history" className="text-sm font-medium text-slate-600 hover:text-brand-primary transition-colors relative group">
                 History
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-primary transition-all group-hover:w-full"></span>
               </Link>
             </nav>
           </div>
@@ -37,16 +49,25 @@ function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8 min-h-[calc(100vh-160px)]">
         {children}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <p className="text-center text-sm text-gray-500">
-            AI-Powered Document Analysis System
-          </p>
+      <footer className="border-t border-slate-200 py-8 mt-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-slate-500 font-medium">
+              Professional Document Analysis System
+            </p>
+            <div className="flex gap-6 text-slate-400 text-xs uppercase tracking-widest font-bold">
+              <span>Secure</span>
+              <span>•</span>
+              <span>Accurate</span>
+              <span>•</span>
+              <span>Verified</span>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

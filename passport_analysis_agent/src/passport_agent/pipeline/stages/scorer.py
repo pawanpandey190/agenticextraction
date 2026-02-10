@@ -67,6 +67,7 @@ class ScorerStage(PipelineStage):
             processing_warnings=context.metadata.warnings.copy(),
             source_file=context.file_path,
             processing_time_seconds=context.metadata.processing_time_seconds,
+            remarks=self._generate_remarks(total_score, confidence_level, context)
         )
 
         context.final_result = result
@@ -169,3 +170,53 @@ class ScorerStage(PipelineStage):
             return "MEDIUM"
         else:
             return "LOW"
+
+    def _generate_remarks(self, score: int, confidence: str, context: PipelineContext) -> str:
+        """Generate a human-readable summary of the analysis.
+
+        Args:
+            score: Overall accuracy score
+            confidence: Confidence level
+            context: Pipeline context
+
+        Returns:
+            Reasoning string
+        """
+        reasons = []
+        
+        # 1. Overall Score & Confidence
+        reasons.append(f"Passport analysis completed with an accuracy score of {score}/100 ({confidence} confidence).")
+
+        # 2. MRZ Validation
+        if context.mrz_data:
+            checksums = context.mrz_data.checksum_results
+            if checksums.composite:
+                reasons.append("MRZ data was successfully detected and all primary checksums (Date of Birth, Expiry Date, Passport Number) were validated as correct.")
+            else:
+                valid_parts = []
+                if checksums.date_of_birth: valid_parts.append("DOB")
+                if checksums.expiry_date: valid_parts.append("Expiry")
+                if checksums.passport_number: valid_parts.append("Passport Number")
+                
+                if valid_parts:
+                    reasons.append(f"MRZ was detected with partial validity (Valid: {', '.join(valid_parts)}). Some checksums failed validation.")
+                else:
+                    reasons.append("MRZ was detected but failed all checksum validations.")
+        else:
+            reasons.append("MRZ (Machine Readable Zone) could not be reliably detected on this document.")
+
+        # 3. Cross-Validation
+        if context.cross_validation:
+            cv = context.cross_validation
+            if cv.mismatched_fields == 0 and cv.matched_fields > 0:
+                reasons.append("All visual data fields (Name, DOB, Passport Number, etc.) perfectly match the data encoded in the MRZ region.")
+            elif cv.matched_fields > 0:
+                reasons.append(f"Most visual fields match the MRZ data, however {cv.mismatched_fields} discrepancy(ies) were found.")
+            else:
+                reasons.append("Significant discrepancies found between visual data and MRZ encoded data.")
+
+        # 4. Image Quality
+        if context.visual_data and context.visual_data.ocr_confidence < 0.7:
+             reasons.append("The document image quality or clarity may be low, resulting in lower OCR confidence for some fields.")
+
+        return " ".join(reasons)

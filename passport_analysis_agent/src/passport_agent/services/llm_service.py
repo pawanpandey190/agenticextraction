@@ -1,9 +1,9 @@
-"""LLM service for OpenAI API interactions."""
+"""LLM service for Anthropic Claude API interactions."""
 
 import json
 from typing import Any, TypeVar
 
-from openai import OpenAI
+from anthropic import Anthropic
 import structlog
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -17,7 +17,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class LLMService:
-    """Service for interacting with OpenAI API."""
+    """Service for interacting with Anthropic Claude API."""
 
     def __init__(self, settings: Settings) -> None:
         """Initialize the LLM service.
@@ -26,9 +26,14 @@ class LLMService:
             settings: Application settings
         """
         self.settings = settings
-        self.client = OpenAI(
-            api_key=settings.openai_api_key.get_secret_value()
-        )
+        import os
+        # Bypass Pydantic settings and use os.environ directly like test.py
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip().strip('"').strip("'")
+        
+        self.client = Anthropic(api_key=api_key)
+        # Diagnostic logging (safe)
+        key_preview = f"{api_key[:12]}...{api_key[-4:]}" if api_key else "EMPTY"
+        logger.error("LLM_SERVICE_DIAGNOSTIC", key_preview=key_preview, model=settings.llm_model)
         self.model = settings.llm_model
         self.max_tokens = settings.llm_max_tokens
         self.temperature = settings.llm_temperature
@@ -45,7 +50,7 @@ class LLMService:
         system_prompt: str,
         extraction_prompt: str,
     ) -> str:
-        """Extract information from an image using OpenAI Vision.
+        """Extract information from an image using Anthropic Claude Vision.
 
         Args:
             image_base64: Base64 encoded image
@@ -60,22 +65,21 @@ class LLMService:
             LLMError: If extraction fails
         """
         try:
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                system=system_prompt,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt,
-                    },
                     {
                         "role": "user",
                         "content": [
                             {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{image_base64}",
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": mime_type,
+                                    "data": image_base64,
                                 },
                             },
                             {
@@ -87,10 +91,10 @@ class LLMService:
                 ],
             )
 
-            return response.choices[0].message.content or ""
+            return response.content[0].text if response.content else ""
 
         except Exception as e:
-            logger.error("OpenAI API error during extraction", error=str(e))
+            logger.error("Anthropic API error during extraction", error=str(e))
             raise LLMError(f"Failed to extract from image: {e}") from e
 
     @retry(
@@ -132,22 +136,21 @@ JSON Schema:
 Extract all visible passport data from the image. If a field is not visible or unclear, use null."""
 
         try:
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                system=system_prompt,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt,
-                    },
                     {
                         "role": "user",
                         "content": [
                             {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{image_base64}",
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": mime_type,
+                                    "data": image_base64,
                                 },
                             },
                             {
@@ -157,10 +160,9 @@ Extract all visible passport data from the image. If a field is not visible or u
                         ],
                     }
                 ],
-                response_format={"type": "json_object"}
             )
 
-            response_text = response.choices[0].message.content or ""
+            response_text = response.content[0].text if response.content else ""
 
             # Try to extract JSON from the response
             json_str = self._extract_json(response_text)
@@ -176,7 +178,7 @@ Extract all visible passport data from the image. If a field is not visible or u
             )
             raise LLMError(f"Failed to parse structured response: {e}") from e
         except Exception as e:
-            logger.error("OpenAI API error during structured extraction", error=str(e))
+            logger.error("Anthropic API error during structured extraction", error=str(e))
             raise LLMError(f"Failed to extract structured data: {e}") from e
 
     def _extract_json(self, text: str) -> str:

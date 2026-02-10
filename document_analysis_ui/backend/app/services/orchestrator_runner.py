@@ -41,23 +41,55 @@ class OrchestratorRunner:
         root_env = orchestrator_base.parent / ".env"
         
         if root_env.exists():
-            load_dotenv(root_env)
-            logger.info("root_env_loaded", env_file=str(root_env))
+            from dotenv import load_dotenv
+            load_dotenv(root_env, override=True)
+            # Proactively strip all loaded keys
+            for k, v in os.environ.items():
+                if "ANTHROPIC_API_KEY" in k or "OPENAI_API_KEY" in k:
+                    os.environ[k] = v.strip().strip('"').strip("'")
+            
+            logger.error("ROOT_ENV_LOADED", env_file=str(root_env))
+            # Critical diagnostic
+            key = os.environ.get("ANTHROPIC_API_KEY", "MISSING")
+            key_preview = f"{key[:12]}...{key[-5:]}" if key != "MISSING" else "MISSING"
+            logger.error("ENV_CHECK", key_preview=key_preview, key_len=len(key) if key != "MISSING" else 0)
         
         if env_file.exists():
-            load_dotenv(env_file)
-            logger.info("orchestrator_env_loaded", env_file=str(env_file))
+            from dotenv import load_dotenv
+            load_dotenv(env_file, override=True)
+            logger.error("ORCHESTRATOR_ENV_LOADED", env_file=str(env_file))
         
         if not root_env.exists() and not env_file.exists():
             logger.warning("no_env_file_found", searched=[str(root_env), str(env_file)])
 
-        # Add master orchestrator to path if needed
-        if orchestrator_path.exists():
-            if str(orchestrator_path) not in sys.path:
-                sys.path.insert(0, str(orchestrator_path))
-            logger.info("orchestrator_path_added", path=str(orchestrator_path))
-        else:
-            logger.error("orchestrator_path_not_found", path=str(orchestrator_path))
+        # Add all agents to path to ensure local changes take precedence
+        agent_paths = [
+            orchestrator_base / "src",
+            orchestrator_base.parent / "passport_analysis_agent" / "src",
+            orchestrator_base.parent / "education_credential_agent" / "src",
+            orchestrator_base.parent / "financial_document_agent" / "src",
+        ]
+        
+        for path in agent_paths:
+            if path.exists():
+                str_path = str(path)
+                if str_path not in sys.path:
+                    sys.path.insert(0, str_path)
+                logger.error("ADDED_TO_SYS_PATH", path=str_path)
+            else:
+                logger.warning("agent_path_not_found", path=str(path))
+
+        # CRITICAL DIAGNOSTIC
+        try:
+            import passport_agent
+            import education_agent
+            import financial_agent
+            logger.error("MODULE_LOAD_DIAGNOSTIC", 
+                         passport=passport_agent.__file__,
+                         education=education_agent.__file__,
+                         financial=financial_agent.__file__)
+        except Exception as e:
+            logger.error("MODULE_LOAD_ERROR", error=str(e))
 
         # Track active tasks and progress queues per session
         self._active_tasks: dict[str, asyncio.Task] = {}
@@ -253,7 +285,14 @@ class OrchestratorRunner:
                 session.update_status(SessionStatus.PROCESSING)
                 session_manager.update_session(session)
 
-            await self._run_orchestrator_with_timeout(upload_dir, output_dir, progress_callback, session_id)
+            await self._run_orchestrator_with_timeout(
+                upload_dir, 
+                output_dir, 
+                progress_callback, 
+                session_id,
+                bank_statement_months=session.bank_statement_period,
+                financial_threshold=session.financial_threshold
+            )
             
             # Post-processing logic (moved from run_with_progress)
             output_file = output_dir / OUTPUT_FILENAME
@@ -267,6 +306,27 @@ class OrchestratorRunner:
                 try:
                     with open(output_file) as f:
                         analysis_data = json.load(f)
+                    
+                    # Update student name if missing
+                    if not session.student_name:
+                        # Try to find name in passport, then education, then financial
+                        passport = analysis_data.get("passport_details", {})
+                        first_name = passport.get("first_name")
+                        last_name = passport.get("last_name")
+                        
+                        if first_name and last_name:
+                            session.student_name = f"{first_name} {last_name}"
+                        elif first_name or last_name:
+                            session.student_name = first_name or last_name
+                        else:
+                            # Try education summary
+                            edu = analysis_data.get("education_summary", {})
+                            if edu.get("student_name"):
+                                session.student_name = edu["student_name"]
+                        
+                        if session.student_name:
+                            logger.info("extracted_student_name", session_id=session_id, name=session.student_name)
+
                     passport = analysis_data.get("passport_details", {})
                     accuracy = passport.get("accuracy_score", 0)
                     
@@ -275,7 +335,7 @@ class OrchestratorRunner:
                         if letter_service.generate_admission_letter(analysis_data, letter_path):
                             session.letter_available = True
                 except Exception as ex:
-                    logger.error("letter_gen_failed", session_id=session_id, error=str(ex))
+                    logger.error("post_processing_failed", session_id=session_id, error=str(ex))
 
                 session.update_status(SessionStatus.COMPLETED)
                 session_manager.update_session(session)
@@ -313,6 +373,8 @@ class OrchestratorRunner:
         output_dir: Path,
         progress_callback: ProgressCallback,
         session_id: str,
+        bank_statement_months: int | None = None,
+        financial_threshold: float | None = None,
     ):
         """Run orchestrator with timeout and retry logic.
         
@@ -353,7 +415,9 @@ class OrchestratorRunner:
                             self._run_orchestrator_sync,
                             upload_dir,
                             output_dir,
-                            progress_callback
+                            progress_callback,
+                            bank_statement_months=bank_statement_months,
+                            financial_threshold=financial_threshold
                         ),
                         timeout=timeout
                     )
@@ -407,6 +471,8 @@ class OrchestratorRunner:
         upload_dir: Path,
         output_dir: Path,
         progress_callback: ProgressCallback,
+        bank_statement_months: int | None = None,
+        financial_threshold: float | None = None,
     ):
         """Run the orchestrator synchronously (called from thread pool).
 
@@ -428,6 +494,8 @@ class OrchestratorRunner:
                 input_folder=upload_dir,
                 output_dir=output_dir,
                 output_format=OutputFormat.BOTH,
+                bank_statement_months=bank_statement_months,
+                financial_threshold=financial_threshold,
             )
             return result
         except ImportError as e:

@@ -53,6 +53,21 @@ class EvaluatorStage(PipelineStage):
         # Determine highest qualification
         highest_qualification = self._find_highest_qualification(context.credentials)
 
+        # Determine student name (from highest qualification or any credential)
+        student_name = None
+        if highest_qualification:
+            # Try to find the credential corresponding to highest qualification
+            for c in context.credentials:
+                if c.qualification_name == highest_qualification.qualification_name and c.student_name:
+                    student_name = c.student_name
+                    break
+        
+        if not student_name:
+            for c in context.credentials:
+                if c.student_name:
+                    student_name = c.student_name
+                    break
+
         # Build evaluation result
         evaluation = self._build_evaluation_result(context)
 
@@ -60,6 +75,7 @@ class EvaluatorStage(PipelineStage):
         analysis_result = AnalysisResult(
             documents_analyzed=documents_analyzed,
             highest_qualification=highest_qualification,
+            student_name=student_name,
             evaluation=evaluation,
             flags=context.metadata.flags.copy(),
             errors=context.metadata.errors.copy(),

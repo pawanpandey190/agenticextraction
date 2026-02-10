@@ -1,4 +1,6 @@
 import type { EducationSummary } from '../../services/types';
+import { GlassCard } from '../common/GlassComponents';
+import { GraduationCap, School, MapPin, Award, Scale, CheckCircle2, AlertCircle, BookOpen, User } from 'lucide-react';
 
 interface EducationTabProps {
   data: EducationSummary | null;
@@ -7,15 +9,21 @@ interface EducationTabProps {
 interface FieldProps {
   label: string;
   value: string | number | null | undefined;
+  icon: React.ReactNode;
   highlight?: boolean;
 }
 
-function Field({ label, value, highlight = false }: FieldProps) {
+function Field({ label, value, icon, highlight = false }: FieldProps) {
   return (
-    <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
-      <dt className="text-sm font-medium text-gray-500">{label}</dt>
-      <dd className={`mt-1 text-sm sm:mt-0 sm:col-span-2 ${highlight ? 'font-semibold text-blue-700' : 'text-gray-900'}`}>
-        {value ?? <span className="text-gray-400 italic">Not available</span>}
+    <div className={`flex items-center justify-between py-4 group hover:bg-slate-50 transition-colors px-4 rounded-xl border-b border-slate-50 last:border-0 ${highlight ? 'bg-brand-primary/5 border border-brand-primary/10' : ''}`}>
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-lg ${highlight ? 'bg-brand-primary/10 text-brand-primary' : 'bg-slate-100 text-slate-400'} group-hover:text-brand-primary transition-colors`}>
+          {icon}
+        </div>
+        <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{label}</dt>
+      </div>
+      <dd className={`text-sm font-black ${highlight ? 'text-brand-primary text-lg' : 'text-slate-900'}`}>
+        {value ?? <span className="text-slate-300 italic font-medium">Not available</span>}
       </dd>
     </div>
   );
@@ -24,83 +32,84 @@ function Field({ label, value, highlight = false }: FieldProps) {
 export function EducationTab({ data }: EducationTabProps) {
   if (!data) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path d="M12 14l9-5-9-5-9 5 9 5z" />
-          <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
-        </svg>
-        <p className="mt-2">No education data available</p>
-        <p className="text-sm">No education documents were found in the uploaded files</p>
-      </div>
+      <GlassCard className="text-center py-16 border-slate-200 shadow-sm bg-white">
+        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100">
+          <BookOpen className="w-10 h-10 text-slate-200" />
+        </div>
+        <h3 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">No Academic Data</h3>
+        <p className="text-sm text-slate-400 font-medium max-w-xs mx-auto">No education documents were identified in the uploaded files.</p>
+      </GlassCard>
     );
   }
 
-  const isValid = data.validation_status?.toLowerCase() === 'valid';
+  const isValid = data.validation_status?.toLowerCase() === 'valid' || data.validation_status?.toUpperCase() === 'PASS';
 
   return (
-    <div className="space-y-6">
-      {/* Student Info */}
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-3">Student Information</h3>
-        <div className="bg-white border rounded-lg divide-y divide-gray-200 px-4">
-          <Field label="Student Name" value={data.student_name} />
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Primary Metrics */}
+      <div className="space-y-8">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] flex items-center gap-2">
+              <Award className="w-3.5 h-3.5" /> Academic Pillar
+            </h3>
+            {data.french_equivalence && (
+              <div className="px-3 py-1 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-[10px] font-black uppercase tracking-widest text-brand-primary">
+                {data.french_equivalence}
+              </div>
+            )}
+          </div>
+          <GlassCard className="p-6 bg-white border-slate-200 shadow-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">EQUIVALENT FRENCH GRADE</p>
+                <h4 className="text-3xl font-black text-slate-900 tracking-tight">{(data.french_equivalent_grade_0_20 ?? 0).toFixed(2)}/20</h4>
+              </div>
+              <div className={`p-3 rounded-2xl bg-brand-primary/10 text-brand-primary border border-brand-primary/10 shadow-sm`}>
+                <Scale className="w-8 h-8" />
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-0 border-slate-200 shadow-sm bg-white overflow-hidden">
+            <Field label="Student Holder" value={data.student_name} icon={<User className="w-4 h-4" />} />
+            <Field label="Qualification" value={data.highest_qualification} icon={<GraduationCap className="w-4 h-4" />} />
+            <Field label="Original Result" value={data.final_grade_original} icon={<Award className="w-4 h-4" />} />
+          </GlassCard>
         </div>
       </div>
 
-      {/* Institution Info */}
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-3">Institution</h3>
-        <div className="bg-white border rounded-lg divide-y divide-gray-200 px-4">
-          <Field label="Institution" value={data.institution} />
-          <Field label="Country" value={data.country} />
+      {/* Institution Distribution */}
+      <div className="space-y-8">
+        <div className="space-y-4">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] px-2 flex items-center gap-2">
+            <School className="w-3.5 h-3.5" /> Institution Integrity
+          </h3>
+          <GlassCard className="p-0 border-slate-200 shadow-sm bg-white overflow-hidden">
+            <Field label="Educational Body" value={data.institution} icon={<School className="w-4 h-4" />} />
+            <Field label="Origin Country" value={data.country} icon={<MapPin className="w-4 h-4" />} />
+            <Field
+              label="Evaluation Path"
+              value={data.validation_status || 'PENDING_VERIFICATION'}
+              icon={<CheckCircle2 className="w-4 h-4" />}
+              highlight
+            />
+          </GlassCard>
         </div>
-      </div>
 
-      {/* Qualification */}
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-3">Qualification</h3>
-        <div className="bg-white border rounded-lg divide-y divide-gray-200 px-4">
-          <Field label="Highest Qualification" value={data.highest_qualification} />
-          <Field label="Original Grade" value={data.final_grade_original} />
-          <Field
-            label="French Equivalent (0-20)"
-            value={data.french_equivalent_grade_0_20}
-            highlight
-          />
-        </div>
+        {data.remarks && (
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] px-2 flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5" /> Academic Assessment
+            </h3>
+            <GlassCard className="p-6 bg-slate-50 border-slate-200 shadow-sm">
+              <p className="text-sm text-slate-600 leading-relaxed italic font-medium">
+                "{data.remarks}"
+              </p>
+            </GlassCard>
+          </div>
+        )}
       </div>
-
-      {/* Validation Status */}
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-3">Validation</h3>
-        <div className="flex items-center space-x-3">
-          <span className="text-sm text-gray-600">Validation Status:</span>
-          <span className={`
-            inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-            ${isValid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
-          `}>
-            {data.validation_status || 'Unknown'}
-          </span>
-        </div>
-      </div>
-
-      {/* Remarks */}
-      {data.remarks && data.remarks.length > 0 && (
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Remarks</h3>
-          <ul className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-            {data.remarks.map((remark, index) => (
-              <li key={index} className="flex items-start space-x-2 text-sm text-blue-800">
-                <svg className="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{remark}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

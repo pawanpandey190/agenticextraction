@@ -210,6 +210,7 @@ batch_router = APIRouter(prefix="/api/batches", tags=["batch"])
 async def upload_batch_folders(
     files: list[UploadFile] = File(...),
     financial_threshold: float = Query(default=15000.0),
+    bank_statement_period: int = Query(default=3),
 ):
     """Upload multiple student folders in batch.
     
@@ -249,6 +250,7 @@ async def upload_batch_folders(
         student_folders={name: [] for name in student_folders.keys()},
         batch_id=batch.batch_id,
         financial_threshold=financial_threshold,
+        bank_statement_period=bank_statement_period,
     )
 
     # Upload files to each session

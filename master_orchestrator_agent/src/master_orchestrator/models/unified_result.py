@@ -29,6 +29,9 @@ class PassportDetails(BaseModel):
     expiry_date: str | None = None  # ISO format YYYY-MM-DD
     mrz_data: MRZDetails | None = None
     accuracy_score: int = 0  # 0-100
+    confidence_level: str | None = None
+    remarks: str = ""
+    french_equivalence: str | None = None
 
     # Extraction status
     extraction_status: str = "success"  # success, partial, failed
@@ -53,6 +56,7 @@ class EducationSummary(BaseModel):
     french_equivalent_grade_0_20: float | None = None
     validation_status: ValidationStatus = ValidationStatus.INCONCLUSIVE
     remarks: str = ""
+    french_equivalence: str | None = None
 
     # Extraction status
     extraction_status: str = "success"  # success, partial, failed
@@ -71,6 +75,7 @@ class FinancialSummary(BaseModel):
     financial_threshold_eur: float = 15000.0
     worthiness_status: WorthinessStatus = WorthinessStatus.INCONCLUSIVE
     remarks: str = ""
+    french_equivalence: str | None = None
 
     # Extraction status
     extraction_status: str = "success"  # success, partial, failed
@@ -132,6 +137,9 @@ class MasterAnalysisResult(BaseModel):
                     else {}
                 ),
                 "accuracy_score": self.passport_details.accuracy_score,
+                "confidence_level": self.passport_details.confidence_level,
+                "remarks": self.passport_details.remarks,
+                "french_equivalence": self.passport_details.french_equivalence,
             }
 
         if self.education_summary:
@@ -139,10 +147,12 @@ class MasterAnalysisResult(BaseModel):
                 "highest_qualification": self.education_summary.highest_qualification or "",
                 "institution": self.education_summary.institution or "",
                 "country": self.education_summary.country or "",
+                "student_name": self.education_summary.student_name or "",
                 "final_grade_original": self.education_summary.final_grade_original or "",
                 "french_equivalent_grade_0_20": self.education_summary.french_equivalent_grade_0_20,
                 "validation_status": self.education_summary.validation_status.value,
                 "remarks": self.education_summary.remarks,
+                "french_equivalence": self.education_summary.french_equivalence,
             }
 
         if self.financial_summary:
@@ -154,11 +164,13 @@ class MasterAnalysisResult(BaseModel):
                 "financial_threshold_eur": self.financial_summary.financial_threshold_eur,
                 "worthiness_status": self.financial_summary.worthiness_status.value,
                 "remarks": self.financial_summary.remarks,
+                "french_equivalence": self.financial_summary.french_equivalence,
             }
 
         if self.cross_validation:
             result["cross_validation"] = {
                 "name_match": self.cross_validation.name_match,
+                "name_match_score": self.cross_validation.name_match_score,
                 "dob_match": self.cross_validation.dob_match,
                 "remarks": self.cross_validation.remarks,
             }

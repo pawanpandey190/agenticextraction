@@ -7,37 +7,32 @@ def get_visual_extraction_prompt() -> str:
     Returns:
         Extraction prompt string
     """
-    return """Analyze this passport image and extract the following information from the Visual Inspection Zone (VIZ):
+    return """Analyze this passport image and extract the following information from the Visual Inspection Zone (VIZ). 
 
-1. first_name: Given name(s) as shown on passport (uppercase)
-2. last_name: Surname/family name as shown (uppercase)
-3. date_of_birth: In YYYY-MM-DD format
-4. passport_number: The document number
-5. issuing_country: 3-letter ICAO country code
-6. nationality: 3-letter ICAO country code
-7. passport_issue_date: In YYYY-MM-DD format (if visible)
-8. passport_expiry_date: In YYYY-MM-DD format
-9. sex: M for Male, F for Female, X for Unspecified
-10. place_of_birth: City/country of birth (if visible)
-11. confidence: Your confidence score (0.0-1.0) based on image quality
+IMPORTANT: Pay special attention to the name fields to ensure high accuracy.
+
+1. first_name: Extract ALL given names exactly as they appear (do not truncate). Look for labels like "Given Names" or "Prénoms".
+2. last_name: Extract the complete surname/family name. Look for labels like "Surname" or "Nom".
+3. date_of_birth: In YYYY-MM-DD format.
+4. passport_number: Document number, usually in top right.
+5. issuing_country: 3-letter ICAO country code.
+6. nationality: 3-letter ICAO country code.
+7. passport_issue_date: In YYYY-MM-DD format (if visible).
+8. passport_expiry_date: In YYYY-MM-DD format.
+9. sex: M for Male, F for Female, X for Unspecified.
+10. place_of_birth: City/country of birth (if visible).
+11. confidence: Your confidence score (0.0-1.0).
+
+Guidelines for Names:
+- Convert names to UPPERCASE.
+- Ignore titles (Mr, Ms, Dr, etc.).
+- NEVER include MRZ-specific prefixes (like "P<", "ETH", "P") in name fields.
+- Maintain exact spelling and punctuations (e.g. hyphens, apostrophes).
+- If names are split across lines, join them with a single space.
+- Check the MRZ at the bottom for verification, but the VIZ is the priority for non-truncated names.
 
 Return the data as a JSON object with these exact field names.
-For any field that is not visible or unclear, use null.
-
-Example response:
-{
-  "first_name": "JOHN WILLIAM",
-  "last_name": "SMITH",
-  "date_of_birth": "1985-06-15",
-  "passport_number": "123456789",
-  "issuing_country": "USA",
-  "nationality": "USA",
-  "passport_issue_date": "2020-01-15",
-  "passport_expiry_date": "2030-01-14",
-  "sex": "M",
-  "place_of_birth": "NEW YORK",
-  "confidence": 0.95
-}"""
+For any field that is not visible or unclear, use null."""
 
 
 def get_mrz_extraction_prompt() -> str:

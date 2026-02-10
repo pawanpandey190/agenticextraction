@@ -9,9 +9,10 @@ from ..base import PipelineContext, PipelineStage
 class EvaluatorStage(PipelineStage):
     """Stage for evaluating financial worthiness."""
 
-    def __init__(self, settings: Settings, threshold_eur: float | None = None) -> None:
+    def __init__(self, settings: Settings, threshold_eur: float | None = None, required_period_months: int | None = None) -> None:
         super().__init__(settings)
         self.threshold_eur = threshold_eur or settings.worthiness_threshold_eur
+        self.required_period_months = required_period_months
 
     @property
     def name(self) -> str:
@@ -152,18 +153,61 @@ class EvaluatorStage(PipelineStage):
         conversion_basis = analysis.converted_to_eur.conversion_basis
 
         # Compare against threshold
+        worth_decision = EvaluationResult.worthy
+        if amount_eur < self.threshold_eur:
+            worth_decision = EvaluationResult.not_worthy
+
+        # Base reason
+        reason = f"{conversion_basis.replace('_', ' ').title()} of {amount_eur:.2f} EUR {'meets or exceeds' if amount_eur >= self.threshold_eur else 'is below'} threshold of {self.threshold_eur:.2f} EUR"
+
+        # Period validation
+        period_msg = self._check_period_compliance(context)
+        if period_msg:
+            reason = f"{reason}. {period_msg}"
+
         if amount_eur >= self.threshold_eur:
             return EvaluationResult.worthy(
                 threshold=self.threshold_eur,
                 amount=amount_eur,
-                reason=f"{conversion_basis.replace('_', ' ').title()} of {amount_eur:.2f} EUR meets or exceeds threshold of {self.threshold_eur:.2f} EUR",
+                reason=reason,
             )
         else:
             return EvaluationResult.not_worthy(
                 threshold=self.threshold_eur,
                 amount=amount_eur,
-                reason=f"{conversion_basis.replace('_', ' ').title()} of {amount_eur:.2f} EUR is below threshold of {self.threshold_eur:.2f} EUR",
+                reason=reason,
             )
+
+    def _check_period_compliance(self, context: PipelineContext) -> str | None:
+        """Check if statement period meets requirements.
+
+        Returns:
+            Validation message or None
+        """
+        if not self.required_period_months:
+            return None
+
+        if not context.financial_data or not context.financial_data.statement_period:
+            return "Unable to validate statement duration (missing period data)."
+
+        period = context.financial_data.statement_period
+        if not period.start_date or not period.end_date:
+            return "Unable to validate statement duration (missing start or end date)."
+
+        # Calculate months
+        months = (period.end_date.year - period.start_date.year) * 12 + (period.end_date.month - period.start_date.month)
+        
+        # Add a partial month if there are significant days remaining
+        days = (period.end_date.day - period.start_date.day)
+        if days >= 25:
+            months += 1
+        elif days <= -25:
+            months -= 1
+
+        if months < self.required_period_months:
+            return f"Statement covers approximately {months} month(s), which is less than the required {self.required_period_months} months."
+        else:
+            return f"Statement covers approximately {months} month(s), meeting the {self.required_period_months}-month requirement."
 
     def _calculate_confidence(self, context: PipelineContext) -> float:
         """Calculate overall confidence score.

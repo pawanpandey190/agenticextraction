@@ -11,6 +11,7 @@ class CreateSessionRequest(BaseModel):
     """Request to create a new session."""
 
     financial_threshold: float = Field(default=15000.0, description="Financial worthiness threshold in EUR")
+    bank_statement_period: int = Field(default=3, description="Required bank statement period in months")
 
 
 class CreateSessionResponse(BaseModel):
@@ -31,6 +32,7 @@ class SessionResponse(BaseModel):
     uploaded_files: list[str]
     total_files: int
     financial_threshold: float
+    bank_statement_period: int
     result_available: bool
     letter_available: bool = False
     error_message: str | None = None

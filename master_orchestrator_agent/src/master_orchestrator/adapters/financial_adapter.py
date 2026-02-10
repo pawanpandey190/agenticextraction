@@ -24,11 +24,12 @@ class FinancialAgentAdapter:
         self._settings = settings
         self._orchestrator = None
 
-    def _ensure_initialized(self, threshold_eur: float | None = None) -> None:
+    def _ensure_initialized(self, threshold_eur: float | None = None, required_period_months: int | None = None) -> None:
         """Lazily initialize the financial agent orchestrator.
 
         Args:
             threshold_eur: Optional override for financial threshold
+            required_period_months: Optional required bank statement period in months
         """
         if self._orchestrator is not None:
             return
@@ -36,7 +37,7 @@ class FinancialAgentAdapter:
         try:
             # Set environment variable for financial agent
             api_key = self._settings.get_financial_api_key()
-            os.environ["FA_OPENAI_API_KEY"] = api_key
+            os.environ["FA_ANTHROPIC_API_KEY"] = api_key or ""
 
             from financial_agent.config.settings import Settings as FinancialSettings
             from financial_agent.pipeline.orchestrator import PipelineOrchestrator
@@ -45,6 +46,7 @@ class FinancialAgentAdapter:
             self._orchestrator = PipelineOrchestrator(
                 settings=financial_settings,
                 threshold_eur=threshold_eur or self._settings.financial_threshold_eur,
+                required_period_months=required_period_months,
             )
 
             logger.info("financial_agent_initialized")
@@ -65,17 +67,19 @@ class FinancialAgentAdapter:
         self,
         file_path: Path,
         threshold_eur: float | None = None,
+        required_period_months: int | None = None,
     ) -> Any:
         """Process a financial document.
 
         Args:
             file_path: Path to the financial document
             threshold_eur: Optional override for financial threshold
+            required_period_months: Optional required bank statement period in months
 
         Returns:
             AnalysisResult from the financial agent
         """
-        self._ensure_initialized(threshold_eur)
+        self._ensure_initialized(threshold_eur, required_period_months)
 
         logger.info("processing_financial", file=str(file_path))
 

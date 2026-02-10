@@ -1,9 +1,9 @@
-"""LLM service for OpenAI API interactions."""
+"""LLM service for Anthropic Claude API interactions."""
 
 import json
 from typing import Any, TypeVar
 
-from openai import OpenAI
+from anthropic import Anthropic
 import structlog
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -18,7 +18,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class LLMService:
-    """Service for interacting with OpenAI API."""
+    """Service for interacting with Anthropic Claude API."""
 
     def __init__(self, settings: Settings) -> None:
         """Initialize the LLM service.
@@ -27,9 +27,11 @@ class LLMService:
             settings: Application settings
         """
         self.settings = settings
-        self.client = OpenAI(
-            api_key=settings.openai_api_key.get_secret_value()
-        )
+        import os
+        # Bypass Pydantic settings and use os.environ directly like test.py
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip().strip('"').strip("'")
+ 
+        self.client = Anthropic(api_key=api_key)
         self.model = settings.llm_model
         self.max_tokens = settings.llm_max_tokens
         self.temperature = settings.llm_temperature
@@ -59,7 +61,7 @@ class LLMService:
         prompt: str | None = None,
         image_bytes: bytes | None = None,
     ) -> str:
-        """Extract text from an image using OpenAI Vision.
+        """Extract text from an image using Anthropic Claude Vision.
 
         Args:
             image_base64: Base64 encoded image
@@ -91,17 +93,21 @@ class LLMService:
                 return cached_result
 
         try:
-            response = self.client.chat.completions.create(
+            # Anthropic vision format
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
+                temperature=self.temperature,
                 messages=[
                     {
                         "role": "user",
                         "content": [
                             {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{image_base64}",
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": mime_type,
+                                    "data": image_base64,
                                 },
                             },
                             {
@@ -113,7 +119,7 @@ class LLMService:
                 ],
             )
 
-            result = response.choices[0].message.content or ""
+            result = response.content[0].text if response.content else ""
 
             # Store in cache if enabled
             if self._cache is not None and cache_key is not None:
@@ -122,7 +128,7 @@ class LLMService:
             return result
 
         except Exception as e:
-            logger.error("OpenAI API error during text extraction", error=str(e))
+            logger.error("Anthropic API error during text extraction", error=str(e))
             raise LLMError(f"Failed to extract text from image: {e}") from e
 
     @retry(
@@ -157,10 +163,10 @@ Analyze the provided content and extract information according to this JSON sche
 
 {json.dumps(schema, indent=2)}
 
-Return ONLY valid JSON that matches this schema. Do not include any other text.
+Return ONLY valid JSON that matches this schema. Do not include any other text or explanation.
 """
 
-        # Build messages
+        # Build messages content
         user_content = []
         if isinstance(content, str):
             user_content.append({"type": "text", "text": content})
@@ -169,9 +175,11 @@ Return ONLY valid JSON that matches this schema. Do not include any other text.
                 if block["type"] == "image":
                     source = block["source"]
                     user_content.append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{source['media_type']};base64,{source['data']}",
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": source['media_type'],
+                            "data": source['data'],
                         },
                     })
                 else:
@@ -180,18 +188,17 @@ Return ONLY valid JSON that matches this schema. Do not include any other text.
         user_content.append({"type": "text", "text": extraction_prompt})
 
         try:
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                system=system_prompt,
                 messages=[
-                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
                 ],
-                response_format={"type": "json_object"}
             )
 
-            response_text = response.choices[0].message.content or ""
+            response_text = response.content[0].text if response.content else ""
 
             # Try to extract JSON from the response
             json_str = self._extract_json(response_text)
@@ -203,7 +210,7 @@ Return ONLY valid JSON that matches this schema. Do not include any other text.
             logger.error("Failed to parse JSON response", error=str(e), response=response_text if 'response_text' in locals() else "N/A")
             raise LLMError(f"Failed to parse structured response: {e}") from e
         except Exception as e:
-            logger.error("OpenAI API error during analysis", error=str(e))
+            logger.error("Anthropic API error during analysis", error=str(e))
             raise LLMError(f"Failed to analyze content: {e}") from e
 
     @retry(
@@ -238,9 +245,11 @@ Return ONLY valid JSON that matches this schema. Do not include any other text.
 
         if image_base64 and mime_type:
             user_content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:{mime_type};base64,{image_base64}",
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": mime_type,
+                    "data": image_base64,
                 },
             })
 
@@ -250,18 +259,17 @@ Return ONLY valid JSON that matches this schema. Do not include any other text.
         })
 
         try:
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                system=system_prompt,
                 messages=[
-                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
                 ],
-                response_format={"type": "json_object"}
             )
 
-            response_text = response.choices[0].message.content or ""
+            response_text = response.content[0].text if response.content else ""
             json_str = self._extract_json(response_text)
 
             return json.loads(json_str)
@@ -270,7 +278,7 @@ Return ONLY valid JSON that matches this schema. Do not include any other text.
             logger.error("Failed to parse classification response", error=str(e))
             raise LLMError(f"Failed to parse classification: {e}") from e
         except Exception as e:
-            logger.error("OpenAI API error during classification", error=str(e))
+            logger.error("Anthropic API error during classification", error=str(e))
             raise LLMError(f"Failed to classify document: {e}") from e
 
     def _extract_json(self, text: str) -> str:

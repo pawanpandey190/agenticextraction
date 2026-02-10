@@ -69,3 +69,8 @@ class CrossValidationResult(BaseModel):
         if comparable_fields == 0:
             return 0.0
         return self.matched_fields / comparable_fields
+
+    @property
+    def all_match(self) -> bool:
+        """Check if all comparable fields match."""
+        return self.mismatched_fields == 0 and self.matched_fields > 0

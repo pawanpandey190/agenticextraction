@@ -9,6 +9,7 @@ export interface Session {
   uploaded_files: string[];
   total_files: number;
   financial_threshold: number;
+  bank_statement_period: number;
   result_available: boolean;
   letter_available: boolean;
   error_message: string | null;
@@ -56,6 +57,9 @@ export interface PassportDetails {
   mrz_line1: string | null;
   mrz_line2: string | null;
   accuracy_score: number | null;
+  confidence_level: string | null;
+  remarks: string | null;
+  french_equivalence: string | null;
 }
 
 export interface FinancialSummary {
@@ -66,7 +70,8 @@ export interface FinancialSummary {
   amount_original: number | null;
   amount_eur: number | null;
   worthiness_status: string | null;
-  remarks: string[] | null;
+  remarks: string | null;
+  french_equivalence: string | null;
 }
 
 export interface EducationSummary {
@@ -77,14 +82,15 @@ export interface EducationSummary {
   final_grade_original: string | null;
   french_equivalent_grade_0_20: number | null;
   validation_status: string | null;
-  remarks: string[] | null;
+  remarks: string | null;
+  french_equivalence: string | null;
 }
 
 export interface CrossValidation {
   name_match: boolean | null;
   name_match_score: number | null;
   dob_match: boolean | null;
-  remarks: string[] | null;
+  remarks: string | null;
 }
 
 export interface ProcessingMetadata {

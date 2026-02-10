@@ -6,15 +6,15 @@ interface ProgressBarProps {
 export function ProgressBar({ percentage, showLabel = true }: ProgressBarProps) {
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-1">
+      <div className="flex justify-between items-center mb-2">
         {showLabel && (
-          <span className="text-sm font-medium text-gray-700">Progress</span>
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Progress</span>
         )}
-        <span className="text-sm font-medium text-blue-600">{Math.round(percentage)}%</span>
+        <span className="text-sm font-bold text-brand-primary">{Math.round(percentage)}%</span>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
         <div
-          className="bg-blue-600 h-full rounded-full transition-all duration-500 ease-out"
+          className="bg-brand-primary h-full rounded-full transition-all duration-1000 ease-out"
           style={{ width: `${percentage}%` }}
         />
       </div>

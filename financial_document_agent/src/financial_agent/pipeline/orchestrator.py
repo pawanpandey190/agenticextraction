@@ -25,15 +25,18 @@ class PipelineOrchestrator:
         self,
         settings: Settings,
         threshold_eur: float | None = None,
+        required_period_months: int | None = None,
     ) -> None:
         """Initialize the pipeline orchestrator.
 
         Args:
             settings: Application settings
             threshold_eur: Optional override for worthiness threshold
+            required_period_months: Optional required bank statement period in months
         """
         self.settings = settings
         self.threshold_eur = threshold_eur or settings.worthiness_threshold_eur
+        self.required_period_months = required_period_months
 
         # Initialize shared services
         self.llm_service = LLMService(settings)
@@ -46,7 +49,7 @@ class PipelineOrchestrator:
             ClassifierStage(settings, self.llm_service),
             ExtractorStage(settings, self.llm_service),
             CurrencyConverterStage(settings, self.exchange_service),
-            EvaluatorStage(settings, self.threshold_eur),
+            EvaluatorStage(settings, self.threshold_eur, self.required_period_months),
         ]
 
         logger.info(
