@@ -178,6 +178,75 @@ test.describe('Document Analysis UI', () => {
     });
   });
 
+  test.describe('Batch Processing Flow', () => {
+    test('should show batch upload option', async ({ page }) => {
+      await page.goto('/');
+
+      // Wait for session creation
+      await expect(page.getByText('Upload Documents')).toBeVisible({ timeout: 10000 });
+
+      // Check if there's a batch upload or multi-folder instruction
+      await expect(page.locator('body')).toContainText(/batch|folder/i);
+    });
+
+    test('should navigate to batch status page', async ({ page }) => {
+      // Create a mock batch
+      const batchId = 'test-batch-123';
+      await page.goto(`/batch/${batchId}`);
+
+      // Should show batch status page
+      await expect(page.locator('h2')).toContainText(/Batch/i);
+      await expect(page.getByText(batchId)).toBeVisible();
+    });
+
+    test('should display progress for batch sessions', async ({ page }) => {
+      const batchId = 'test-batch-progress';
+
+      // Mock the batch status API
+      await page.route(`**/api/sessions/batches/${batchId}`, async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            batch_id: batchId,
+            status: 'processing',
+            total_students: 2,
+            completed: 1,
+            processing: 1,
+            failed: 0,
+            created: 0,
+            sessions: [
+              {
+                session_id: 's1',
+                student_name: 'Student 1',
+                status: 'completed',
+                total_files: 3,
+                result_available: true,
+                letter_available: true
+              },
+              {
+                session_id: 's2',
+                student_name: 'Student 2',
+                status: 'processing',
+                total_files: 2,
+                result_available: false,
+                letter_available: false
+              }
+            ]
+          })
+        });
+      });
+
+      await page.goto(`/batch/${batchId}`);
+
+      // Verify the progress is shown
+      await expect(page.getByText('Student 1')).toBeVisible();
+      await expect(page.getByText('Student 2')).toBeVisible();
+      await expect(page.getByText('completed', { exact: false })).toBeVisible();
+      await expect(page.getByText('processing', { exact: false })).toBeVisible();
+    });
+  });
+
   test.describe('Error Handling', () => {
     test('should handle invalid session ID gracefully', async ({ page }) => {
       // Navigate to a non-existent session's processing page

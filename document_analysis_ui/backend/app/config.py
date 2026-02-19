@@ -25,9 +25,12 @@ class Settings(BaseSettings):
     financial_threshold: float = 15000.0
     
     # API timeout settings
-    api_timeout_seconds: int = 600  # Timeout for agent API calls (increased for sequential PDF processing)
+    api_timeout_seconds: int = 600  # Timeout for agent API calls
     api_retry_attempts: int = 3  # Number of retry attempts
     api_retry_delay_seconds: int = 2  # Delay between retries
+
+    # Celery settings
+    redis_url: str = "redis://localhost:6379/0"
 
     class Config:
         env_prefix = "DAU_"

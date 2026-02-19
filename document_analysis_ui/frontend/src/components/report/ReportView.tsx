@@ -10,7 +10,8 @@ import { SummaryTab } from './SummaryTab';
 import { MetadataTab } from './MetadataTab';
 import { DocumentViewer } from './DocumentViewer';
 import { GlassCard, GlassButton } from '../common/GlassComponents';
-import { FileText, X, Edit, ChevronRight, Activity, ShieldCheck, PieChart, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FileText, X, Edit, ChevronRight, Activity, ShieldCheck, PieChart, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 interface ReportViewProps {
   result: AnalysisResult;
@@ -33,6 +34,7 @@ export function ReportView({
   const [manualName, setManualName] = useState('');
   const [manualDate, setManualDate] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const navigate = useNavigate();
 
   const passportAccuracy = result.passport?.accuracy_score ?? 0;
   const isHighAccuracy = passportAccuracy >= 70;
@@ -111,16 +113,25 @@ export function ReportView({
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="space-y-1"
+          className="space-y-4"
         >
-          <div className="flex items-center gap-2 text-brand-primary mb-2">
-            <span className="px-2 py-0.5 rounded-full bg-brand-primary/10 text-xs font-semibold uppercase tracking-wider border border-brand-primary/20">
-              Audit Complete
-            </span>
-            <span className="text-slate-500">•</span>
-            <span className="text-xs text-slate-400 font-medium">Session ID: {sessionId.slice(0, 8)}...</span>
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] hover:text-brand-primary/80 transition-all group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            Go Back
+          </button>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-brand-primary mb-2">
+              <span className="px-2 py-0.5 rounded-full bg-brand-primary/10 text-xs font-semibold uppercase tracking-wider border border-brand-primary/20">
+                Audit Complete
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="text-xs text-slate-400 font-medium">Session ID: {sessionId.slice(0, 8)}...</span>
+            </div>
+            <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Analysis Report</h2>
           </div>
-          <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Analysis Report</h2>
         </motion.div>
 
         <div className="flex flex-wrap items-center gap-3">

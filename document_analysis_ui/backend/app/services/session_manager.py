@@ -26,6 +26,7 @@ class SessionManager:
         self._base_path = base_path or settings.session_base_path
         self._sessions: dict[str, Session] = {}
         self._batch_sessions: dict[str, set[str]] = {}  # batch_id -> set of session_ids
+        self._last_mtimes: dict[str, float] = {}  # session_id -> last known mtime
         
         self._ensure_base_dir()
         self._warm_cache()
@@ -45,7 +46,11 @@ class SessionManager:
         session_file = self._get_session_file(session.id)
         session_file.write_text(session.model_dump_json(indent=2))
         
-        # Update batch mapping
+        # Update batch mapping and mtime
+        session_file = self._get_session_file(session.id)
+        if session_file.exists():
+            self._last_mtimes[session.id] = session_file.stat().st_mtime
+
         if session.batch_id:
             if session.batch_id not in self._batch_sessions:
                 self._batch_sessions[session.batch_id] = set()
@@ -58,6 +63,8 @@ class SessionManager:
             try:
                 data = json.loads(session_file.read_text())
                 session = Session(**data)
+                # Update mtime cache
+                self._last_mtimes[session_id] = session_file.stat().st_mtime
                 # Ensure mapping is updated
                 if session.batch_id:
                     if session.batch_id not in self._batch_sessions:
@@ -186,23 +193,24 @@ class SessionManager:
         return sorted(sessions, key=lambda s: s.created_at, reverse=True)
 
     def get_session(self, session_id: str) -> Session | None:
-        """Get a session by ID.
+        """Get a session by ID, reloading if updated on disk."""
+        session_file = self._get_session_file(session_id)
+        if not session_file.exists():
+            self._sessions.pop(session_id, None)
+            return None
 
-        Args:
-            session_id: Session identifier.
+        current_mtime = session_file.stat().st_mtime
+        cached_mtime = self._last_mtimes.get(session_id, 0)
 
-        Returns:
-            Session if found, None otherwise.
-        """
-        # Check in-memory cache first
-        if session_id in self._sessions:
-            return self._sessions[session_id]
+        # Reload if not in cache OR if file has been modified
+        if session_id not in self._sessions or current_mtime > cached_mtime:
+            session = self._load_session(session_id)
+            if session:
+                self._sessions[session_id] = session
+                return session
+            return None
 
-        # Try loading from disk
-        session = self._load_session(session_id)
-        if session:
-            self._sessions[session_id] = session
-        return session
+        return self._sessions.get(session_id)
 
     def update_session(self, session: Session) -> None:
         """Update a session.
@@ -216,14 +224,26 @@ class SessionManager:
         logger.info("session_updated", session_id=session.id, status=session.status)
 
     def delete_session(self, session_id: str) -> bool:
-        """Delete a session and its files.
+        """Delete a session and its files, revoking any active task."""
+        session = self.get_session(session_id)
+        if not session:
+            # Check if directory exists even if not in cache
+            session_dir = self._base_path / session_id
+            if session_dir.exists():
+                shutil.rmtree(session_dir)
+                return True
+            return False
 
-        Args:
-            session_id: Session identifier.
+        # 1. Revoke active task if any
+        if session.status == SessionStatus.PROCESSING and session.celery_task_id:
+            try:
+                from app.celery_app import celery_app
+                logger.info("revoking_task_before_deletion", session_id=session_id, task_id=session.celery_task_id)
+                celery_app.control.revoke(session.celery_task_id, terminate=True, signal='SIGKILL')
+            except Exception as e:
+                logger.error("failed_to_revoke_task_on_deletion", session_id=session_id, error=str(e))
 
-        Returns:
-            True if deleted, False if not found.
-        """
+        # 2. Delete files
         session_dir = self._base_path / session_id
         if session_dir.exists():
             shutil.rmtree(session_dir)
@@ -233,16 +253,42 @@ class SessionManager:
         return False
 
     def list_sessions(self) -> list[Session]:
-        """List all sessions.
-
-        Returns:
-            List of all sessions.
-        """
-        # If cache is empty and there are directories, warm it
-        if not self._sessions:
-            self._warm_cache()
+        """List all sessions, refreshing from disk."""
+        # Force re-scan of directory to find new sessions or external updates
+        if self._base_path.exists():
+            for session_dir in self._base_path.iterdir():
+                if session_dir.is_dir():
+                    # This will trigger the mtime check in get_session
+                    self.get_session(session_dir.name)
             
         return sorted(self._sessions.values(), key=lambda s: s.created_at, reverse=True)
+
+    def resolve_duplicate_name(self, name: str, current_session_id: str) -> str:
+        """Resolve a student name to avoid duplicates in history.
+        
+        If name exists, appends " 1", " 2", etc.
+        """
+        if not name:
+            return name
+            
+        sessions = self.list_sessions()
+        existing_names = [
+            s.student_name for s in sessions 
+            if s.id != current_session_id and s.student_name
+        ]
+        
+        if name not in existing_names:
+            return name
+            
+        # Increment until we find a name that's not taken
+        counter = 1
+        new_name = f"{name} {counter}"
+        while new_name in existing_names:
+            counter += 1
+            new_name = f"{name} {counter}"
+            
+        logger.info("resolved_duplicate_name", original=name, resolved=new_name, session_id=current_session_id)
+        return new_name
 
     def cleanup_expired_sessions(self, expiry_hours: int | None = None) -> int:
         """Remove sessions older than expiry time.

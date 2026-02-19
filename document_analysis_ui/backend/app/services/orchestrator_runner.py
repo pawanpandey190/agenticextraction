@@ -91,14 +91,10 @@ class OrchestratorRunner:
         except Exception as e:
             logger.error("MODULE_LOAD_ERROR", error=str(e))
 
-        # Track active tasks and progress queues per session
-        self._active_tasks: dict[str, asyncio.Task] = {}
+        # Track progress queues per session
         self._progress_queues: dict[str, list[asyncio.Queue]] = {}
         self._task_locks: dict[str, asyncio.Lock] = {}
-        
-        # GLOBAL SEMAPHORE: Ensures only 1 heavy AI analysis runs at a time cross-application
-        # This prevents OOM and Segmentation Faults on ARM64 Mac
-        self._global_semaphore = asyncio.Semaphore(1)
+        self._redis_listeners: dict[str, asyncio.Task] = {}
 
     def _get_lock(self, session_id: str) -> asyncio.Lock:
         """Get or create a lock for a specific session.
@@ -107,22 +103,15 @@ class OrchestratorRunner:
         return self._task_locks.setdefault(session_id, asyncio.Lock())
 
     async def cancel_session(self, session_id: str) -> bool:
-        """Cancel processing for a session.
-        
-        Args:
-            session_id: Session identifier.
-            
-        Returns:
-            True if a task was cancelled, False if no active task found.
-        """
-        task = self._active_tasks.get(session_id)
-        if task and not task.done():
-            logger.info("cancelling_session", session_id=session_id)
-            task.cancel()
+        """Cancel processing for a session using Celery revoke."""
+        session = session_manager.get_session(session_id)
+        if session and session.celery_task_id:
+            logger.info("revoking_celery_task", session_id=session_id, task_id=session.celery_task_id)
+            from app.celery_app import celery_app
+            celery_app.control.revoke(session.celery_task_id, terminate=True, signal='SIGKILL')
             
             # Clean up tracking
             async with self._get_lock(session_id):
-                self._active_tasks.pop(session_id, None)
                 queues = self._progress_queues.pop(session_id, None)
                 if queues:
                     for q in queues:
@@ -132,7 +121,7 @@ class OrchestratorRunner:
             
             return True
         
-        logger.warning("no_active_task_to_cancel", session_id=session_id)
+        logger.warning("no_celery_task_to_cancel", session_id=session_id)
         return False
 
     async def run_with_progress(
@@ -178,10 +167,16 @@ class OrchestratorRunner:
             if session_id not in self._progress_queues:
                 self._progress_queues[session_id] = []
             self._progress_queues[session_id].append(personal_queue)
+            
+            # Start Redis listener if not already running for this session
+            if session_id not in self._redis_listeners:
+                self._redis_listeners[session_id] = asyncio.create_task(
+                    self._listen_to_redis_progress(session_id)
+                )
         
         try:
-            # Flow until complete
-            async for event in self._stream_from_personal_queue(session_id, personal_queue, orchestrator_task):
+            # Flow until complete (or timeout)
+            async for event in self._stream_from_personal_queue(session_id, personal_queue):
                 yield event
         finally:
             # Cleanup personal queue
@@ -191,17 +186,69 @@ class OrchestratorRunner:
                         self._progress_queues[session_id].remove(personal_queue)
                     if not self._progress_queues[session_id]:
                         self._progress_queues.pop(session_id)
-            # If task is done and no more queues, remove task
-            if orchestrator_task.done():
-                async with self._get_lock(session_id):
-                    if session_id not in self._progress_queues:
-                        self._active_tasks.pop(session_id, None)
+
+    async def _listen_to_redis_progress(self, session_id: str):
+        """Listen to Redis Pub/Sub for progress updates from Celery workers."""
+        import redis.asyncio as redis
+        
+        try:
+            client = redis.from_url(settings.redis_url)
+            pubsub = client.pubsub()
+            channel = f"session_progress:{session_id}"
+            await pubsub.subscribe(channel)
+            
+            logger.info("redis_subscription_started", session_id=session_id)
+            
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        data = json.loads(message["data"])
+                        update = ProgressUpdate(**data)
+                        
+                        # Update session in SessionManager cache immediately
+                        session = session_manager.get_session(session_id)
+                        if session:
+                            session.current_document = update.current_document
+                            session.processed_documents = update.processed_documents
+                            session.total_documents = update.total_documents
+                            percentage = ((update.stage_index + 1) / update.total_stages) * 100
+                            session.progress_percentage = percentage
+                            # We don't need to save to disk here, the worker already did
+                            # But we ensure our local cache reflects it
+                            session_manager.update_session(session)
+
+                        # Broadcast to all queues for this session
+                        async with self._get_lock(session_id):
+                            queues = self._progress_queues.get(session_id, [])
+                            for q in queues:
+                                q.put_nowait(update)
+                    except Exception as e:
+                        logger.error("redis_message_parse_error", error=str(e))
+                
+                # Check if session is finished to stop listening
+                session = session_manager.get_session(session_id)
+                if session and session.status in (SessionStatus.COMPLETED, SessionStatus.FAILED):
+                    break
+                    
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error("redis_listener_error", error=str(e), session_id=session_id)
+        finally:
+            # Clean up
+            async with self._get_lock(session_id):
+                self._redis_listeners.pop(session_id, None)
+                # Send completion signal to ALL queues so they don't wait forever
+                queues = self._progress_queues.get(session_id, [])
+                for q in queues:
+                    try:
+                        q.put_nowait(None)
+                    except: pass
 
     async def _stream_from_personal_queue(
         self,
         session_id: str,
         personal_queue: asyncio.Queue,
-        orchestrator_task: asyncio.Task,
     ) -> AsyncGenerator[ProgressEvent, None]:
         """Stream progress events from a personal queue."""
         try:
@@ -212,7 +259,9 @@ class OrchestratorRunner:
                         break
                     yield ProgressEvent.from_update(update)
                 except asyncio.TimeoutError:
-                    if orchestrator_task.done():
+                    # Check if session is in terminal state
+                    session = session_manager.get_session(session_id)
+                    if session and session.status in (SessionStatus.COMPLETED, SessionStatus.FAILED):
                         # Final drain
                         while not personal_queue.empty():
                             update = personal_queue.get_nowait()
@@ -234,47 +283,28 @@ class OrchestratorRunner:
         # OBSOLETE - Replaced by _stream_from_personal_queue
         pass
 
-    async def start_background_task(self, session_id: str) -> asyncio.Task | None:
-        """Start the orchestrator task in the background if not already running.
-        
-        This allows processing to start without a progress listener.
-        """
+    async def start_background_task(self, session_id: str) -> str | None:
+        """Start the orchestrator task in Celery."""
         async with self._get_lock(session_id):
-            # Check if already running
-            if session_id in self._active_tasks:
-                task = self._active_tasks[session_id]
-                if not task.done():
-                    return task
-
             session = session_manager.get_session(session_id)
             if not session:
                 return None
 
-            upload_dir = session_manager.get_upload_dir(session_id)
-            output_dir = session_manager.get_output_dir(session_id)
+            # If already processing, just return existing id
+            if session.status == SessionStatus.PROCESSING and session.celery_task_id:
+                return session.celery_task_id
+
+            # Dispatch to Celery
+            from app.tasks import run_analysis_task
+            result = run_analysis_task.delay(session_id)
             
-            if not upload_dir or not output_dir or not upload_dir.exists():
-                logger.error("session_dirs_missing", session_id=session_id)
-                return None
-
-            # Create list for progress queues
-            self._progress_queues[session_id] = []
-
-            # Capture loop for thread-safe callback
-            loop = asyncio.get_running_loop()
-
-            def progress_callback(update: ProgressUpdate) -> None:
-                if not loop.is_closed():
-                    queues = self._progress_queues.get(session_id, [])
-                    for q in queues:
-                        loop.call_soon_threadsafe(q.put_nowait, update)
-
-            # Start background task
-            task = asyncio.create_task(
-                self._run_orchestrator_work_wrapped(session_id, upload_dir, output_dir, progress_callback)
-            )
-            self._active_tasks[session_id] = task
-            return task
+            # Save task ID
+            session.celery_task_id = result.id
+            session.update_status(SessionStatus.PROCESSING)
+            session_manager.update_session(session)
+            
+            logger.info("dispatched_to_celery", session_id=session_id, task_id=result.id)
+            return result.id
 
     async def _run_orchestrator_work_wrapped(self, session_id: str, upload_dir: Path, output_dir: Path, progress_callback: ProgressCallback):
         """Internal wrapper to run orchestrator and handle completion/errors."""
@@ -315,9 +345,12 @@ class OrchestratorRunner:
                         last_name = passport.get("last_name")
                         
                         if first_name and last_name:
-                            session.student_name = f"{first_name} {last_name}"
-                        elif first_name or last_name:
-                            session.student_name = first_name or last_name
+                            name = f"{first_name} {last_name}"
+                        else:
+                            name = first_name or last_name
+                            
+                        if name:
+                            session.student_name = session_manager.resolve_duplicate_name(name, session_id)
                         else:
                             # Try education summary
                             edu = analysis_data.get("education_summary", {})

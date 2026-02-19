@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../services/api';
 import type { Session } from '../services/types';
-import { Clock, CheckCircle, XCircle, Loader2, ChevronRight, Search, FileText, Download, Trash2 } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Loader2, ChevronRight, Search, FileText, Download, Trash2, ArrowLeft } from 'lucide-react';
 
 export function HistoryPage() {
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -90,13 +90,22 @@ export function HistoryPage() {
     return (
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-3">
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
-                        Analysis History
-                    </h1>
-                    <p className="text-sm text-slate-500 font-medium max-w-2xl leading-relaxed">
-                        Review and download previous analysis results.
-                    </p>
+                <div className="space-y-4">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="flex items-center gap-2 text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] hover:text-brand-primary/80 transition-all mb-4 group"
+                    >
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Back to Portal
+                    </button>
+                    <div className="space-y-1">
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
+                            Analysis History
+                        </h1>
+                        <p className="text-sm text-slate-500 font-medium max-w-2xl leading-relaxed">
+                            Review and download previous analysis results.
+                        </p>
+                    </div>
                 </div>
                 <Link
                     to="/"

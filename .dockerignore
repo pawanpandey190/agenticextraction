@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+venv
+node_modules
+dist
+document_analysis_ui/frontend/node_modules
+document_analysis_ui/frontend/dist
+data
+/tmp/document_analysis_ui
+.DS_Store

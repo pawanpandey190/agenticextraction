@@ -1,0 +1,49 @@
+# Use Python 3.11 slim image (Bookworm for stability)
+FROM python:3.11-slim-bookworm
+
+# Set working directory
+WORKDIR /app
+
+# Create logs directory
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    tesseract-ocr \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+COPY ["conditional letter_v1.docx", "."]
+
+# Remove editable installs from requirements.txt before installing
+RUN sed -i '/-e/d' requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy all agents and backend code
+COPY passport_analysis_agent/ /app/passport_analysis_agent/
+COPY financial_document_agent/ /app/financial_document_agent/
+COPY education_credential_agent/ /app/education_credential_agent/
+COPY master_orchestrator_agent/ /app/master_orchestrator_agent/
+COPY document_analysis_ui/backend/ /app/document_analysis_ui/backend/
+
+# Install agents in editable mode within the container
+RUN pip install -e /app/passport_analysis_agent && \
+    pip install -e /app/financial_document_agent && \
+    pip install -e /app/education_credential_agent && \
+    pip install -e /app/master_orchestrator_agent && \
+    pip install -e /app/document_analysis_ui/backend
+
+# Set environment variables
+ENV PYTHONPATH="/app/document_analysis_ui/backend:/app/master_orchestrator_agent/src:/app/passport_analysis_agent/src:/app/education_credential_agent/src:/app/financial_document_agent/src"
+ENV PYTHONUNBUFFERED=1
+
+# Expose port
+EXPOSE 8000
+
+# Default command (can be overridden in docker-compose)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

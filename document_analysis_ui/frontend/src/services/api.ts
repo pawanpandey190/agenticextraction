@@ -35,6 +35,7 @@ interface BackendPassportDetails {
   accuracy_score?: number;
   confidence_level?: string;
   remarks?: string;
+  french_equivalence?: string | null;
 }
 
 interface BackendFinancialSummary {
@@ -47,6 +48,7 @@ interface BackendFinancialSummary {
   financial_threshold_eur?: number;
   worthiness_status?: string;
   remarks?: string;
+  french_equivalence?: string | null;
 }
 
 interface BackendEducationSummary {
@@ -58,6 +60,7 @@ interface BackendEducationSummary {
   french_equivalent_grade_0_20?: number | null;
   validation_status?: string;
   remarks?: string;
+  french_equivalence?: string | null;
 }
 
 interface BackendCrossValidation {
@@ -76,7 +79,7 @@ interface BackendAnalysisResult {
 }
 
 // Transform backend response to frontend format
-function transformResult(backend: BackendAnalysisResult): AnalysisResult {
+export function transformResult(backend: BackendAnalysisResult): AnalysisResult {
   const passport: PassportDetails | null = backend.passport_details ? {
     first_name: backend.passport_details.first_name || null,
     last_name: backend.passport_details.last_name || null,
@@ -90,6 +93,7 @@ function transformResult(backend: BackendAnalysisResult): AnalysisResult {
     accuracy_score: backend.passport_details.accuracy_score ?? 0,
     confidence_level: backend.passport_details.confidence_level || null,
     remarks: backend.passport_details.remarks || null,
+    french_equivalence: backend.passport_details.french_equivalence || null,
   } : null;
 
   const financial: FinancialSummary | null = backend.financial_summary ? {
@@ -101,6 +105,7 @@ function transformResult(backend: BackendAnalysisResult): AnalysisResult {
     amount_eur: backend.financial_summary.amount_eur || null,
     worthiness_status: backend.financial_summary.worthiness_status || null,
     remarks: backend.financial_summary.remarks || null,
+    french_equivalence: backend.financial_summary.french_equivalence || null,
   } : null;
 
   const education: EducationSummary | null = backend.education_summary ? {
@@ -112,6 +117,7 @@ function transformResult(backend: BackendAnalysisResult): AnalysisResult {
     french_equivalent_grade_0_20: backend.education_summary.french_equivalent_grade_0_20 ?? null,
     validation_status: backend.education_summary.validation_status || null,
     remarks: backend.education_summary.remarks || null,
+    french_equivalence: backend.education_summary.french_equivalence || null,
   } : null;
 
   const crossValidation: CrossValidation | null = backend.cross_validation ? {

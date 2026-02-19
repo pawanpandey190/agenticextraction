@@ -47,6 +47,7 @@ class Session(BaseModel):
     # Results
     result_available: bool = False
     letter_available: bool = False
+    celery_task_id: str | None = None
     error_message: str | None = None
 
     def get_upload_dir(self, base_path: Path) -> Path:

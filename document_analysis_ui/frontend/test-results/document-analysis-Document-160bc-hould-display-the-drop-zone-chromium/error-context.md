@@ -1,0 +1,66 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - link "Logo Document Analysis" [ref=e7] [cursor=pointer]:
+        - /url: /
+        - img "Logo" [ref=e9]
+        - heading "Document Analysis" [level=1] [ref=e10]
+      - navigation [ref=e11]:
+        - link "New Analysis" [ref=e12] [cursor=pointer]:
+          - /url: /
+          - text: New Analysis
+        - link "Batch Upload" [ref=e13] [cursor=pointer]:
+          - /url: /batch-upload
+          - text: Batch Upload
+        - link "History" [ref=e14] [cursor=pointer]:
+          - /url: /history
+          - text: History
+  - main [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - heading "New Analysis" [level=2] [ref=e19]
+          - paragraph [ref=e20]: Upload documents for automated verification and assessment.
+        - button "Batch Students" [ref=e21] [cursor=pointer]:
+          - img [ref=e23]
+          - text: Batch Students
+      - generic [ref=e26]:
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - img [ref=e31]
+            - heading "Control Hub" [level=3] [ref=e34]
+          - generic [ref=e35]:
+            - generic [ref=e36]:
+              - generic [ref=e37]: Financial Threshold (EUR)
+              - spinbutton [ref=e38]: "15000"
+            - generic [ref=e39]:
+              - generic [ref=e40]: Bank Statement Period (Months)
+              - spinbutton [ref=e41]: "3"
+            - generic [ref=e42]:
+              - generic [ref=e43]:
+                - img [ref=e44]
+                - generic [ref=e46]: Global Policy
+              - paragraph [ref=e47]: Statements covering less than 3 months or totals below €15,000 will be flagged for review.
+        - generic [ref=e48]:
+          - generic [ref=e51] [cursor=pointer]:
+            - button "Choose File" [ref=e52]
+            - generic [ref=e53]:
+              - img [ref=e55]
+              - paragraph [ref=e58]: Ingest Documents
+              - paragraph [ref=e59]: Drop files or click to initiate upload (PDF, PNG, JPG)
+          - button "Start Analysis Pipeline" [disabled] [ref=e61]:
+            - img [ref=e63]
+            - text: Start Analysis Pipeline
+  - contentinfo [ref=e65]:
+    - generic [ref=e67]:
+      - paragraph [ref=e68]: Professional Document Analysis System
+      - generic [ref=e69]:
+        - generic [ref=e70]: Secure
+        - generic [ref=e71]: •
+        - generic [ref=e72]: Accurate
+        - generic [ref=e73]: •
+        - generic [ref=e74]: Verified
+```

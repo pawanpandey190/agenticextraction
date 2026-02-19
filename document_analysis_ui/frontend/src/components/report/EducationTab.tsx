@@ -42,7 +42,8 @@ export function EducationTab({ data }: EducationTabProps) {
     );
   }
 
-  const isValid = data.validation_status?.toLowerCase() === 'valid' || data.validation_status?.toUpperCase() === 'PASS';
+  // No changes needed here, just removing the declaration if it's not used
+  // const isValid = data.validation_status?.toLowerCase() === 'valid' || data.validation_status?.toUpperCase() === 'PASS';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
