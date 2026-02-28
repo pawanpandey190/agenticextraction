@@ -59,6 +59,11 @@ class VisualExtractorStage(PipelineStage):
             # Convert to VisualPassportData
             visual_data = self._convert_response(response)
             context.visual_data = visual_data
+            
+            # Store LLM-generated score and reason
+            context.llm_score = response.accuracy_score
+            context.is_passport = response.is_passport
+            context.score_reason = response.justification
 
             context.set_stage_result(
                 self.name,
@@ -85,6 +90,8 @@ class VisualExtractorStage(PipelineStage):
                 first_name=visual_data.first_name,
                 last_name=visual_data.last_name,
                 passport_number=visual_data.passport_number,
+                is_passport=context.is_passport,
+                llm_score=context.llm_score,
                 confidence=visual_data.ocr_confidence,
             )
 

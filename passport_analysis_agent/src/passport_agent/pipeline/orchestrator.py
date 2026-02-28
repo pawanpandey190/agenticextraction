@@ -3,6 +3,7 @@
 import structlog
 
 from ..config.settings import Settings
+from typing import Callable
 from ..models.result import PassportAnalysisResult
 from ..services.llm_service import LLMService
 from ..services.mrz_service import MRZService
@@ -51,38 +52,66 @@ class PassportPipelineOrchestrator:
             ScorerStage(settings),
         ]
 
-    def process(self, file_path: str) -> PassportAnalysisResult:
-        """Process a passport document through the pipeline with automatic retry for low scores.
+    def process(
+        self,
+        file_path: str,
+        progress_callback: Callable[[str, int, int], None] | None = None
+    ) -> PassportAnalysisResult:
+        """Process a passport document through the pipeline.
 
         Args:
-            file_path: Path to the passport document
+            file_path: Path to the document
+            progress_callback: Optional callback (stage_name, current, total)
 
         Returns:
-            PassportAnalysisResult with extracted data and scoring
+            Analysis result
 
         Raises:
-            Exception: If a critical stage fails
+            PassportAgentError: If processing fails
         """
-        # Run initial attempt
-        result = self._run_pipeline(file_path, enhancement_level=0)
-        
-        # Trigger retry if score is low
-        FALLBACK_SCORE_THRESHOLD = 70
-        if result.accuracy_score < FALLBACK_SCORE_THRESHOLD:
-            logger.info("Low accuracy score detected, retrying with high enhancement", 
-                        score=result.accuracy_score, threshold=FALLBACK_SCORE_THRESHOLD)
-            
-            retry_result = self._run_pipeline(file_path, enhancement_level=1)
-            
-            if retry_result.accuracy_score > result.accuracy_score:
-                logger.info("Retry improved the score", 
-                            old_score=result.accuracy_score, 
-                            new_score=retry_result.accuracy_score)
-                result = retry_result
-            else:
-                logger.info("Retry did not improve the score, keeping original")
+        logger.info("starting_passport_pipeline", file=file_path)
 
-        return result
+        context = PipelineContext(
+            file_path=file_path,
+            settings=self.settings,
+        )
+
+        try:
+            total_stages = len(self.stages)
+            for i, stage in enumerate(self.stages):
+                if progress_callback:
+                    progress_callback(stage.name, i + 1, total_stages)
+
+                logger.info("executing_stage", stage=stage.name)
+                context = stage.execute(context)
+
+            # The ScorerStage already builds the final_result
+            if context.final_result:
+                result = context.final_result
+            else:
+                # Fallback in case ScorerStage was skipped or failed
+                from ..models.passport_data import VisualPassportData
+                accuracy_score = context.llm_score or 0
+                confidence_level = "HIGH" if accuracy_score >= 80 else "MEDIUM" if accuracy_score >= 50 else "LOW"
+                result = PassportAnalysisResult(
+                    extracted_mrz_data=context.mrz_data,
+                    extracted_passport_data=context.visual_data or VisualPassportData(),
+                    accuracy_score=accuracy_score,
+                    llm_score=context.llm_score,
+                    score_reason=context.score_reason,
+                    is_passport=context.is_passport,
+                    confidence_level=confidence_level,
+                    remarks=context.score_reason or "Processing complete.",
+                    processing_errors=context.metadata.errors.copy(),
+                )
+
+            logger.info("passport_pipeline_completed", score=result.accuracy_score)
+            return result
+
+        except Exception as e:
+            logger.error("pipeline_error", error=str(e))
+            from ..utils.exceptions import PassportAgentError
+            raise PassportAgentError(f"Pipeline failed: {str(e)}") from e
 
     def _run_pipeline(self, file_path: str, enhancement_level: int = 0) -> PassportAnalysisResult:
         """Run the pipeline stages for a specific enhancement level."""

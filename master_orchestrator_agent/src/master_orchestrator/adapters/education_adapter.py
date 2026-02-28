@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import structlog
 
@@ -65,16 +65,34 @@ class EducationAgentAdapter:
         self,
         file_paths: list[Path],
         grade_table_path: str | None = None,
+        evaluation_level: str | None = None,
+        progress_callback: Callable[[str, int, int], None] | None = None,
     ) -> Any:
         """Process education documents.
 
         Args:
             file_paths: List of paths to education documents
             grade_table_path: Optional path to grade conversion table
+            evaluation_level: Optional evaluation level
+            progress_callback: Optional progress callback
 
         Returns:
             AnalysisResult from the education agent
         """
+        if grade_table_path is None:
+            # Try to locate default table relative to project root or in /app (Docker)
+            possible_paths = [
+                Path("education_credential_agent/data/grade_tables/default_conversion_table.json"),
+                Path("/app/education_credential_agent/data/grade_tables/default_conversion_table.json"),
+                # Local development path
+                Path(__file__).parent.parent.parent.parent.parent / "education_credential_agent" / "data" / "grade_tables" / "default_conversion_table.json"
+            ]
+            for p in possible_paths:
+                if p.exists():
+                    grade_table_path = str(p.absolute())
+                    logger.info("resolved_default_grade_table", path=grade_table_path)
+                    break
+
         self._ensure_initialized(grade_table_path)
 
         logger.info("processing_education", file_count=len(file_paths))
@@ -82,7 +100,11 @@ class EducationAgentAdapter:
         try:
             # Convert paths to strings for the education agent
             str_paths = [str(p) for p in file_paths]
-            result = self._orchestrator.process_files(str_paths)
+            result = self._orchestrator.process_files(
+                str_paths, 
+                evaluation_level=evaluation_level,
+                progress_callback=progress_callback
+            )
 
             logger.info(
                 "education_processed",
@@ -110,22 +132,44 @@ class EducationAgentAdapter:
         self,
         folder_path: Path,
         grade_table_path: str | None = None,
+        evaluation_level: str | None = None,
+        progress_callback: Callable[[str, int, int], None] | None = None,
     ) -> Any:
         """Process all education documents in a folder.
 
         Args:
             folder_path: Path to folder containing education documents
             grade_table_path: Optional path to grade conversion table
+            evaluation_level: Optional evaluation level
+            progress_callback: Optional progress callback
 
         Returns:
             AnalysisResult from the education agent
         """
+        if grade_table_path is None:
+            # Try to locate default table relative to project root or in /app (Docker)
+            possible_paths = [
+                Path("education_credential_agent/data/grade_tables/default_conversion_table.json"),
+                Path("/app/education_credential_agent/data/grade_tables/default_conversion_table.json"),
+                # Local development path
+                Path(__file__).parent.parent.parent.parent.parent / "education_credential_agent" / "data" / "grade_tables" / "default_conversion_table.json"
+            ]
+            for p in possible_paths:
+                if p.exists():
+                    grade_table_path = str(p.absolute())
+                    logger.info("resolved_folder_default_grade_table", path=grade_table_path)
+                    break
+
         self._ensure_initialized(grade_table_path)
 
         logger.info("processing_education_folder", folder=str(folder_path))
 
         try:
-            result = self._orchestrator.process_folder(str(folder_path))
+            result = self._orchestrator.process_folder(
+                str(folder_path),
+                evaluation_level=evaluation_level,
+                progress_callback=progress_callback
+            )
 
             logger.info(
                 "education_folder_processed",

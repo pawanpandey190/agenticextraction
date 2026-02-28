@@ -1,6 +1,7 @@
 """Pipeline orchestrator for document processing."""
 
 import structlog
+from typing import Callable
 
 from ..config.settings import Settings
 from ..models.financial_data import AnalysisResult
@@ -58,11 +59,16 @@ class PipelineOrchestrator:
             threshold_eur=self.threshold_eur,
         )
 
-    def process(self, file_path: str) -> AnalysisResult:
+    def process(
+        self, 
+        file_path: str, 
+        progress_callback: Callable[[str, int, int], None] | None = None
+    ) -> AnalysisResult:
         """Process a document through the pipeline.
 
         Args:
             file_path: Path to the document file
+            progress_callback: Optional progress callback
 
         Returns:
             Analysis result
@@ -80,7 +86,11 @@ class PipelineOrchestrator:
 
         try:
             # Execute each stage
-            for stage in self.stages:
+            total_stages = len(self.stages)
+            for i, stage in enumerate(self.stages):
+                if progress_callback:
+                    progress_callback(stage.name, i + 1, total_stages)
+                
                 context = stage.execute(context)
 
             # Mark processing complete

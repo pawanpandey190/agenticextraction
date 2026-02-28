@@ -22,12 +22,13 @@ export function UploadPage() {
 
   const [financialThreshold, setFinancialThreshold] = useState(15000);
   const [bankStatementPeriod, setBankStatementPeriod] = useState(3);
+  const [evaluationLevel, setEvaluationLevel] = useState('bachelors');
 
   const handleUpload = async (files: File[]) => {
     try {
       let currentSession = session;
       if (!currentSession) {
-        currentSession = (await createSession(financialThreshold, bankStatementPeriod)) as any;
+        currentSession = (await createSession(financialThreshold, bankStatementPeriod, evaluationLevel)) as any;
       }
       if (currentSession) {
         await uploadFiles(files, currentSession.id);
@@ -111,6 +112,8 @@ export function UploadPage() {
         onThresholdChange={setFinancialThreshold}
         bankStatementPeriod={bankStatementPeriod}
         onPeriodChange={setBankStatementPeriod}
+        evaluationLevel={evaluationLevel}
+        onLevelChange={setEvaluationLevel}
       />
     </div>
   );

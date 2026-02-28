@@ -26,6 +26,7 @@ class MasterPipelineContext:
     settings: Settings
     bank_statement_months: int | None = None
     financial_threshold: float | None = None
+    evaluation_level: str | None = None
 
     # Stage 1: Scanned documents
     scanned_documents: list[DocumentInfo] = field(default_factory=list)

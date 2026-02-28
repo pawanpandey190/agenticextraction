@@ -25,7 +25,8 @@ async def create_session(
     """Create a new processing session."""
     session = session_manager.create_session(
         financial_threshold=request.financial_threshold,
-        bank_statement_period=request.bank_statement_period
+        bank_statement_period=request.bank_statement_period,
+        evaluation_level=request.evaluation_level
     )
     return CreateSessionResponse(
         session_id=session.id,
@@ -48,6 +49,7 @@ async def list_sessions(current_user: User = Depends(get_current_user)):
             total_files=s.total_files,
             financial_threshold=s.financial_threshold,
             bank_statement_period=s.bank_statement_period,
+            evaluation_level=s.evaluation_level,
             result_available=s.result_available,
             letter_available=s.letter_available,
             error_message=s.error_message,
@@ -80,6 +82,7 @@ async def get_session(session_id: str, current_user: User = Depends(get_current_
         total_files=session.total_files,
         financial_threshold=session.financial_threshold,
         bank_statement_period=session.bank_statement_period,
+        evaluation_level=session.evaluation_level,
         result_available=session.result_available,
         letter_available=session.letter_available,
         error_message=session.error_message,

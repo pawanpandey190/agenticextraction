@@ -109,9 +109,21 @@ class CountryGradingSystem(BaseModel):
             return None
 
         letter_upper = letter.upper().strip()
+        # Try exact match first
         for mapping in self.letter_mappings:
             if mapping.letter.upper() == letter_upper:
                 return mapping.get_french_equivalent()
+
+        # Try partial match (e.g., "D+ (PLUS)" should match "D+")
+        # We check if a mapping letter is the starting part of the extracted letter
+        # followed by a space or parenthesis, or just at the end.
+        for mapping in self.letter_mappings:
+            m_letter = mapping.letter.upper()
+            if letter_upper.startswith(m_letter):
+                # Ensure we don't match "A" in "A-" - check if next char is not alphanumeric
+                remaining = letter_upper[len(m_letter):].strip()
+                if not remaining or not remaining[0].isalnum():
+                    return mapping.get_french_equivalent()
 
         return None
 

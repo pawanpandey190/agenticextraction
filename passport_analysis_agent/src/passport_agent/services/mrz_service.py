@@ -69,11 +69,12 @@ logger = structlog.get_logger(__name__)
 class MRZService:
     """Service for parsing and validating MRZ data."""
 
-    def parse(self, lines: list[str]) -> MRZData:
+    def parse(self, lines: list[str], viz_witness: str | None = None) -> MRZData:
         """Parse MRZ lines automatically detecting format TD1, TD2, or TD3.
         
         Args:
             lines: List of MRZ lines (either 2 or 3 lines)
+            viz_witness: Optional passport number from VIZ to use as witness
             
         Returns:
             Parsed MRZ data
@@ -96,7 +97,7 @@ class MRZService:
             return self.parse_td1(normalized_lines[0], normalized_lines[1], normalized_lines[2])
         elif len(normalized_lines) == 2:
             if len(normalized_lines[0]) == TD3_LINE_LENGTH:
-                return self.parse_td3(normalized_lines[0], normalized_lines[1])
+                return self.parse_td3(normalized_lines[0], normalized_lines[1], viz_witness=viz_witness)
             else:
                 return self.parse_td2(normalized_lines[0], normalized_lines[1])
                 
@@ -214,12 +215,13 @@ class MRZService:
             )
         )
 
-    def parse_td3(self, line1: str, line2: str) -> MRZData:
+    def parse_td3(self, line1: str, line2: str, viz_witness: str | None = None) -> MRZData:
         """Parse TD3 format MRZ (passport, 2 lines of 44 characters).
 
         Args:
             line1: First MRZ line (44 characters)
             line2: Second MRZ line (44 characters)
+            viz_witness: Optional passport number from VIZ to use as witness
 
         Returns:
             Parsed MRZ data
@@ -292,10 +294,21 @@ class MRZService:
             line2=line2,
         )
 
-        # Try to parse Line 2 with repair if initial checksum fails
-        if not checksum_results.all_valid:
-            logger.info("Checksum failed, attempting repair", results=checksum_results.to_dict())
-            repaired_line2 = self._repair_line2(line2)
+        # Try to parse Line 2 with repair if initial checksum fails 
+        # OR if we have a VIZ witness that disagrees (even if checksum is "valid" due to collision)
+        should_repair = not checksum_results.all_valid
+        if not should_repair and viz_witness:
+            # Check for collision: MRZ valid but different from VIZ
+            clean_pass = passport_number.replace("<", "").strip()
+            clean_viz = viz_witness.replace("<", "").strip()
+            if clean_pass != clean_viz:
+                logger.info("Checksum valid but MRZ disagrees with VIZ witness, attempting collision-aware repair", 
+                           mrz=clean_pass, viz=clean_viz)
+                should_repair = True
+
+        if should_repair:
+            logger.info("Attempting line repair", checksum_valid=checksum_results.all_valid, has_viz=viz_witness is not None)
+            repaired_line2 = self._repair_line2(line2, viz_witness=viz_witness)
             if repaired_line2 != line2:
                 logger.info("Line 2 repaired successfully")
                 line2 = repaired_line2
@@ -464,25 +477,31 @@ class MRZService:
                  
         return None
 
-    def _repair_line2(self, line: str) -> str:
-        """Repair common OCR errors in MRZ Line 2 using checksums.
+    def _repair_line2(self, line: str, viz_witness: str | None = None) -> str:
+        """Repair common OCR errors in MRZ Line 2 using checksums and optional VIZ witness.
         
-        Targeted swaps: O->0, 0->O, I->1, 1->I, S->5, 5->S, B->8, 8->B.
+        Handles multiple character swaps using a depth-limited search for fields where 
+        checksums fail or disagree with VIZ.
+        
+        Targeted swaps: O<->0, I<->1, S<->5, B<->8, Z<->2.
         
         Args:
             line: 44-character Line 2 of MRZ
+            viz_witness: Optional passport number from VIZ to use as witness
             
         Returns:
             Repaired line if valid checksum found, otherwise original line
         """
         repaired = list(line)
+        modified = False
         
         # Define fields and their check digit positions in TD3 Line 2
+        # (start, end, check_idx, is_numeric_only)
         fields = [
-            (TD3_LINE2_PASSPORT_NUMBER_START, TD3_LINE2_PASSPORT_NUMBER_END, TD3_LINE2_PASSPORT_CHECK),
-            (TD3_LINE2_DOB_START, TD3_LINE2_DOB_END, TD3_LINE2_DOB_CHECK),
-            (TD3_LINE2_EXPIRY_START, TD3_LINE2_EXPIRY_END, TD3_LINE2_EXPIRY_CHECK),
-            (TD3_LINE2_PERSONAL_NUMBER_START, TD3_LINE2_PERSONAL_NUMBER_END, TD3_LINE2_PERSONAL_CHECK),
+            (TD3_LINE2_PASSPORT_NUMBER_START, TD3_LINE2_PASSPORT_NUMBER_END, TD3_LINE2_PASSPORT_CHECK, False),
+            (TD3_LINE2_DOB_START, TD3_LINE2_DOB_END, TD3_LINE2_DOB_CHECK, True),
+            (TD3_LINE2_EXPIRY_START, TD3_LINE2_EXPIRY_END, TD3_LINE2_EXPIRY_CHECK, True),
+            (TD3_LINE2_PERSONAL_NUMBER_START, TD3_LINE2_PERSONAL_NUMBER_END, TD3_LINE2_PERSONAL_CHECK, False),
         ]
         
         swaps = {
@@ -493,33 +512,37 @@ class MRZService:
             'Z': '2', '2': 'Z'
         }
         
-        modified = False
-        for start, end, check_idx in fields:
+        for start, end, check_idx, numeric_only in fields:
             field_data = "".join(repaired[start:end])
             check_digit = repaired[check_idx]
             
-            # If check digit is invalid, try swapping common errors in data OR check digit
-            if not validate_check_digit(field_data, check_digit):
-                # 1. Try swapping characters in the data field
-                field_list = list(field_data)
-                found_fix = False
-                for i in range(len(field_list)):
-                    orig_char = field_list[i]
-                    if orig_char in swaps:
-                        field_list[i] = swaps[orig_char]
-                        if validate_check_digit("".join(field_list), check_digit):
-                            repaired[start:end] = field_list
-                            modified = True
-                            found_fix = True
-                            break
-                        field_list[i] = orig_char # Backtrack
+            is_passport_field = (start == TD3_LINE2_PASSPORT_NUMBER_START)
+            witness = viz_witness if is_passport_field else None
+            
+            # Check if current field is valid and matches witness
+            is_valid = validate_check_digit(field_data, check_digit)
+            matches_witness = True
+            if witness:
+                matches_witness = (field_data.replace("<", "").strip() == witness.replace("<", "").strip())
+            
+            if not is_valid or not matches_witness:
+                # Attempt to find a combination that satisfies the checksum
+                # and matches witness if available.
+                best_fix = self._find_best_field_fix(
+                    field_data, 
+                    check_digit, 
+                    swaps, 
+                    numeric_only=numeric_only,
+                    witness=witness
+                )
                 
-                # 2. If still invalid, try swapping the check digit itself
-                if not found_fix and check_digit in swaps:
-                    new_check = swaps[check_digit]
-                    if validate_check_digit(field_data, new_check):
+                if best_fix:
+                    new_field, new_check = best_fix
+                    if new_field != field_data or new_check != check_digit:
+                        repaired[start:end] = list(new_field)
                         repaired[check_idx] = new_check
                         modified = True
+                        logger.info("Field repaired", field=new_field, check=new_check, original=field_data)
         
         # Finally, try repairing the composite check digit (pos 43)
         composite_data = (
@@ -529,6 +552,8 @@ class MRZService:
         )
         composite_check = repaired[43]
         if not validate_check_digit(composite_data, composite_check):
+            # Try swapping in composite data or check digit
+            # For simplicity, we just try swapping the composite check digit itself for now
             if composite_check in swaps:
                 new_composite_check = swaps[composite_check]
                 if validate_check_digit(composite_data, new_composite_check):
@@ -536,3 +561,80 @@ class MRZService:
                     modified = True
 
         return "".join(repaired) if modified else line
+
+    def _find_best_field_fix(
+        self, 
+        field_data: str, 
+        check_digit: str, 
+        swaps_map: dict[str, str], 
+        numeric_only: bool = False,
+        witness: str | None = None
+    ) -> tuple[str, str] | None:
+        """Find the best combination of character swaps to satisfy checksum and witness."""
+        
+        # If witness is provided, prioritize it
+        if witness:
+            # Normalize witness to 9 chars with < padding
+            norm_witness = witness.replace("<", "").strip().upper().ljust(9, "<")[:9]
+            witness_check = calculate_check_digit(norm_witness)
+            
+            # Check if witness itself (as digits) satisfies the current checksum (if it were allowed)
+            # This handles the case where OCR read 'B' (letter) but witness is '8' (digit)
+            if validate_check_digit(norm_witness, str(witness_check)):
+                # If the witness is valid and we can reach it via swaps, take it!
+                can_reach = True
+                for i in range(len(field_data)):
+                    if field_data[i] != norm_witness[i]:
+                        if field_data[i] not in swaps_map or swaps_map[field_data[i]] != norm_witness[i]:
+                            can_reach = False
+                            break
+                
+                if can_reach:
+                    return norm_witness, str(witness_check)
+
+        # General search for checksum matches
+        # Generate possible swap indices
+        swap_indices = [i for i, char in enumerate(field_data) if char in swaps_map]
+        check_can_swap = check_digit in swaps_map
+        
+        # Use a simple recursion to try combinations (max 2^swap_indices)
+        # We limit depth to avoid explosion, though fields are small (9)
+        results = []
+        
+        def explore(idx_ptr, current_field, current_check):
+            if validate_check_digit(current_field, current_check):
+                # Count swaps from original
+                swap_count = 0
+                for i in range(len(current_field)):
+                    if current_field[i] != field_data[i]: swap_count += 1
+                if current_check != check_digit: swap_count += 1
+                
+                results.append((swap_count, current_field, current_check))
+                return
+
+            if idx_ptr >= len(swap_indices):
+                # Try swapping check digit if we haven't already
+                if check_can_swap and current_check == check_digit:
+                    explore(idx_ptr, current_field, swaps_map[check_digit])
+                return
+
+            # Option 1: Don't swap this character
+            explore(idx_ptr + 1, current_field, current_check)
+            
+            # Option 2: Swap this character
+            idx = swap_indices[idx_ptr]
+            new_field = current_field[:idx] + swaps_map[current_field[idx]] + current_field[idx+1:]
+            explore(idx_ptr + 1, new_field, current_check)
+
+        # Limit search space if too many swap candidates (unlikely for 9 chars)
+        if len(swap_indices) > 5:
+            swap_indices = swap_indices[:5]
+            
+        explore(0, field_data, check_digit)
+        
+        if not results:
+            return None
+            
+        # Prioritize minimum swaps
+        results.sort(key=lambda x: x[0])
+        return results[0][1], results[0][2]

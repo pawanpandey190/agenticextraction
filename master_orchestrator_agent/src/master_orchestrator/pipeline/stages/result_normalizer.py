@@ -76,6 +76,19 @@ class ResultNormalizerStage(MasterPipelineStage):
             
             remarks = getattr(raw_result, "remarks", "")
             if remarks is None: remarks = ""
+            
+            is_passport = getattr(raw_result, "is_passport", True)
+            if is_passport is None: is_passport = True
+            
+            llm_score = getattr(raw_result, "llm_score", None)
+            score_reason = getattr(raw_result, "score_reason", None)
+
+            # Suppress results for non-passport documents (False Positives)
+            # If the agent explicitly identified it as NOT a passport and gave 0 score,
+            # we treat it as a misclassification and omit it from the final results.
+            if not is_passport and accuracy_score == 0:
+                logger.info("suppressing_passport_result_as_false_positive", remarks=remarks)
+                return None
 
             # If it's a dict (fallback)
             if isinstance(raw_result, dict):
@@ -84,6 +97,9 @@ class ResultNormalizerStage(MasterPipelineStage):
                 remarks = raw_result.get("remarks") if raw_result.get("remarks") is not None else remarks
                 visual_data = raw_result.get("extracted_passport_data", visual_data)
                 mrz_data = raw_result.get("extracted_mrz_data", mrz_data)
+                is_passport = raw_result.get("is_passport", is_passport)
+                llm_score = raw_result.get("llm_score", llm_score)
+                score_reason = raw_result.get("score_reason", score_reason)
 
             # Extra check: if remarks is still empty but we have processing errors
             if not remarks and hasattr(raw_result, "processing_errors"):
@@ -165,6 +181,9 @@ class ResultNormalizerStage(MasterPipelineStage):
                     expiry_date=e_date.isoformat() if hasattr(e_date, "isoformat") else str(e_date) if e_date else None,
                     mrz_data=mrz_details,
                     accuracy_score=accuracy_score,
+                    llm_score=llm_score,
+                    score_reason=score_reason,
+                    is_passport=is_passport,
                     confidence_level=confidence_level,
                     remarks=remarks,
                     french_equivalence="Authenticité Validée" if accuracy_score >= 70 and confidence_level == "HIGH" else "Authenticité Partielle" if accuracy_score >= 50 else "Authenticité Non Confirmée",
@@ -175,6 +194,9 @@ class ResultNormalizerStage(MasterPipelineStage):
                 extraction_status="partial",
                 failure_reason="No visual data extracted",
                 accuracy_score=accuracy_score,
+                llm_score=llm_score,
+                score_reason=score_reason,
+                is_passport=is_passport,
                 confidence_level=confidence_level,
                 mrz_data=mrz_details,
                 remarks=remarks or "Passport detection partially failed. Visual zone data missing.",
@@ -295,6 +317,7 @@ class ResultNormalizerStage(MasterPipelineStage):
         """Reconcile passport number between VIZ and MRZ data.
         
         Prioritizes MRZ if visual is obviously wrong or MRZ has valid checksum.
+        If they disagree but both could be valid (collision), prefers VIZ as witness.
         """
         try:
             if isinstance(mrz_data, dict):
@@ -312,14 +335,35 @@ class ResultNormalizerStage(MasterPipelineStage):
             if not visual_pnum:
                 return mrz_pnum
 
-            # Normalize
+            # Normalize for comparison
             v_p = "".join(filter(str.isalnum, visual_pnum.upper()))
             m_p = "".join(filter(str.isalnum, mrz_pnum.upper()))
 
             if v_p == m_p:
                 return visual_pnum
 
-            # If MRZ checksum is valid, or visual is clearly wrong (e.g. contains words or is too long/short)
+            # COLLISION DETECTION:
+            # If they disagree, but the difference is only common OCR confusions
+            # (e.g. 8 vs B, 5 vs S, 0 vs O), we treat VIZ as the higher-fidelity witness
+            # if the VIZ version *also* satisfies the checksum rules.
+            confusions = {'8': 'B', 'B': '8', '5': 'S', 'S': '5', '0': 'O', 'O': '0', '2': 'Z', 'Z': '2', '1': 'I', 'I': '1'}
+            
+            # Check if v_p and m_p are "look-alikes"
+            is_look_alike = len(v_p) == len(m_p)
+            if is_look_alike:
+                for i in range(len(v_p)):
+                    if v_p[i] != m_p[i]:
+                        if v_p[i] not in confusions or confusions[v_p[i]] != m_p[i]:
+                            is_look_alike = False
+                            break
+            
+            if is_look_alike:
+                logger.info("reconciler_detected_passport_ocr_collision_preferring_viz", 
+                             visual=visual_pnum, mrz=mrz_pnum)
+                return visual_pnum
+
+            # Fallback: If MRZ checksum is valid, or visual is clearly wrong
+            # (e.g. contains words or is too long/short)
             is_visual_suspicious = len(v_p) > 15 or len(v_p) < 6 or any(c.islower() for c in visual_pnum)
             
             if pnum_valid or is_visual_suspicious:
@@ -489,8 +533,11 @@ class ResultNormalizerStage(MasterPipelineStage):
                     result_status = highest_qual.result_status.value
 
             # If the grade is below 8 in French scale, it's also a fail (French standard)
+            # We use 8.0 as the standard minimum threshold for this specific workflow.
+            is_low_grade = False
             if french_grade is not None and french_grade < 8.0:
                 result_status = "FAIL"
+                is_low_grade = True
 
             if result_status == "FAIL":
                 validation_status = ValidationStatus.FAIL
@@ -517,11 +564,20 @@ class ResultNormalizerStage(MasterPipelineStage):
 
             # Validation Status and "Why"
             if validation_status == ValidationStatus.PASS:
-                remarks_parts.append("Validation: PASSED. All required semesters were found and verified.")
+                if context.evaluation_level == "bachelors":
+                    remarks_parts.append("Validation: PASSED. Bachelors Admission detected; strict university semester validation was bypassed as requested.")
+                else:
+                    remarks_parts.append("Validation: PASSED. All required semesters were found and verified.")
             elif validation_status == ValidationStatus.FAIL:
-                remarks_parts.append("Validation: FAILED/REFUSED. The qualification was not successfully obtained or did not meet the passing criteria.")
-            else:
+                if is_low_grade:
+                    remarks_parts.append(f"Validation: FAILED/REFUSED. The detected grade ({french_grade:.2f}/20) is below the minimum required threshold of 8.00/20 for this qualification.")
+                else:
+                    remarks_parts.append("Validation: FAILED/REFUSED. The documents explicitly indicate that the qualification was not successfully obtained (e.g., 'Refusé' or 'Échec'), despite the converted grade.")
+            elif not is_low_grade:
                 remarks_parts.append("Validation: INCONCLUSIVE. The documents provided do not allow for a full semester-by-semester verification.")
+            else:
+                # This should be covered by ValidationStatus.FAIL above, but safety check
+                remarks_parts.append("Validation: FAILED/REFUSED due to insufficient academic results.")
             
             # Missing semesters detail
             if evaluation:

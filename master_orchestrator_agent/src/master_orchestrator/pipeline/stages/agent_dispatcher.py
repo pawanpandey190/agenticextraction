@@ -78,6 +78,24 @@ class AgentDispatcherStage(MasterPipelineStage):
                 total_documents=len(context.scanned_documents) if context.scanned_documents else 0
             )
 
+    def _create_sub_callback(
+        self, 
+        context: MasterPipelineContext, 
+        agent_name: str, 
+        doc_name: str | None,
+        processed_count: int
+    ) -> Callable[[str, int, int], None]:
+        """Create a callback for sub-agents to report their internal progress."""
+        def sub_callback(sub_stage: str, current: int, total: int):
+            self._emit_dispatch_progress(
+                context=context,
+                message=f"{agent_name.capitalize()} - {sub_stage} ({current}/{total})",
+                sub_agent=agent_name,
+                current_document=doc_name,
+                processed_documents=processed_count,
+            )
+        return sub_callback
+
     def _process_sequential(self, context: MasterPipelineContext) -> None:
         """Process agents sequentially (original behavior)."""
         processed_count = 0
@@ -232,7 +250,11 @@ class AgentDispatcherStage(MasterPipelineStage):
         try:
             # Process only the first passport document (one passport expected)
             first_doc = docs[0]
-            result = self._passport_adapter.process(first_doc.file_path)
+            
+            # Create sub-callback for granular progress
+            sub_cb = self._create_sub_callback(context, "passport", first_doc.file_name, 0)
+            
+            result = self._passport_adapter.process(first_doc.file_path, progress_callback=sub_cb)
 
             if len(docs) > 1:
                 context.add_warning(
@@ -264,12 +286,17 @@ class AgentDispatcherStage(MasterPipelineStage):
         try:
             # Process only the first financial document
             first_doc = docs[0]
+            
+            # Count already processed (e.g. passport)
+            processed_count = 1 if context.document_batch.passport_documents else 0
+            sub_cb = self._create_sub_callback(context, "financial", first_doc.file_name, processed_count)
+            
             result = self._financial_adapter.process(
                 first_doc.file_path,
                 threshold_eur=context.financial_threshold or context.settings.financial_threshold_eur,
                 required_period_months=context.bank_statement_months,
+                progress_callback=sub_cb,
             )
-
             if len(docs) > 1:
                 context.add_warning(
                     f"Multiple financial documents found ({len(docs)}), "
@@ -300,11 +327,20 @@ class AgentDispatcherStage(MasterPipelineStage):
         try:
             # Process all education documents together
             file_paths = [doc.file_path for doc in docs]
+            
+            # Calculate processed count
+            processed_count = 0
+            if context.document_batch.passport_documents: processed_count += 1
+            if context.document_batch.financial_documents: processed_count += 1
+            
+            sub_cb = self._create_sub_callback(context, "education", docs[0].file_name, processed_count)
+            
             result = self._education_adapter.process(
                 file_paths=file_paths,
                 grade_table_path=None,  # Use default
+                evaluation_level=context.evaluation_level,
+                progress_callback=sub_cb,
             )
-
             logger.info(
                 "education_processing_complete",
                 file_count=len(docs),

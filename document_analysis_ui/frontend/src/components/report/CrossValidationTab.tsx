@@ -21,9 +21,9 @@ function MatchIndicator({ label, isMatch, score, icon }: MatchIndicatorProps) {
           <div className="p-2 rounded-lg bg-white/5 text-slate-500">
             {icon}
           </div>
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{label}</span>
+          <span className="text-xs font-bold text-slate-900 uppercase tracking-widest">{label}</span>
         </div>
-        <span className="text-xs font-bold text-slate-600 uppercase">Not available</span>
+        <span className="text-xs font-bold text-slate-900 uppercase">Not available</span>
       </div>
     );
   }
@@ -34,11 +34,11 @@ function MatchIndicator({ label, isMatch, score, icon }: MatchIndicatorProps) {
         <div className={`p-2 rounded-lg bg-white/5 ${isMatch ? 'text-brand-secondary' : 'text-red-400'} group-hover:scale-110 transition-transform`}>
           {icon}
         </div>
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest group-hover:text-white transition-colors">{label}</span>
+        <span className="text-xs font-bold text-slate-900 uppercase tracking-widest group-hover:text-black transition-colors">{label}</span>
       </div>
       <div className="flex items-center space-x-4">
         {score !== null && score !== undefined && (
-          <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest opacity-60">
+          <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest opacity-60">
             {(score * 100).toFixed(1)}% CONFIDENCE
           </span>
         )}
@@ -58,8 +58,8 @@ export function CrossValidationTab({ data }: CrossValidationTabProps) {
         <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
           <ShieldCheck className="w-10 h-10 text-slate-600" />
         </div>
-        <h3 className="text-xl font-bold text-white mb-2">No Validation Data</h3>
-        <p className="text-slate-400 max-w-xs mx-auto">Cross-validation requires multiple document types to be present.</p>
+        <h3 className="text-xl font-bold text-slate-900 mb-2">No Validation Data</h3>
+        <p className="text-slate-600 max-w-xs mx-auto">Cross-validation requires multiple document types to be present.</p>
       </GlassCard>
     );
   }
@@ -80,11 +80,11 @@ export function CrossValidationTab({ data }: CrossValidationTabProps) {
                 {allMatch ? <CheckCircle2 className="w-10 h-10" /> : <AlertCircle className="w-10 h-10" />}
               </div>
               <div>
-                <h4 className="text-xl font-black text-white">{allMatch ? 'Data Consistent' : 'Verification Warning'}</h4>
-                <p className="text-xs text-slate-400 font-medium uppercase tracking-widest mt-1">Cross-Document Audit Complete</p>
+                <h4 className="text-xl font-black text-slate-900">{allMatch ? 'Data Consistent' : 'Verification Warning'}</h4>
+                <p className="text-xs text-slate-900 font-bold uppercase tracking-widest mt-1">Cross-Document Audit Complete</p>
               </div>
             </div>
-            <p className="text-sm text-slate-300 leading-relaxed italic border-t border-white/5 pt-4">
+            <p className="text-sm text-slate-900 leading-relaxed italic border-t border-black/5 pt-4">
               {allMatch
                 ? "All personally identifiable information (PII) is perfectly synchronized across the submitted identity, academic, and financial dossiers."
                 : "Discrepancies detected in PII fields across documents. Manual auditor review is highly recommended for this application."}
@@ -119,8 +119,8 @@ export function CrossValidationTab({ data }: CrossValidationTabProps) {
             <h3 className="text-sm font-black text-slate-500 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
               <AlertCircle className="w-4 h-4" /> Cross-Agent Remarks
             </h3>
-            <GlassCard className="p-6 bg-brand-primary/5 border-brand-primary/20">
-              <p className="text-sm text-slate-300 leading-relaxed">
+            <GlassCard className="p-6 bg-slate-100 border-slate-200">
+              <p className="text-sm text-slate-900 leading-relaxed">
                 {data.remarks}
               </p>
             </GlassCard>

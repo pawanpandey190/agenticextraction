@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import structlog
 
@@ -68,6 +68,7 @@ class FinancialAgentAdapter:
         file_path: Path,
         threshold_eur: float | None = None,
         required_period_months: int | None = None,
+        progress_callback: Callable[[str, int, int], None] | None = None,
     ) -> Any:
         """Process a financial document.
 
@@ -75,6 +76,7 @@ class FinancialAgentAdapter:
             file_path: Path to the financial document
             threshold_eur: Optional override for financial threshold
             required_period_months: Optional required bank statement period in months
+            progress_callback: Optional progress callback
 
         Returns:
             AnalysisResult from the financial agent
@@ -84,7 +86,7 @@ class FinancialAgentAdapter:
         logger.info("processing_financial", file=str(file_path))
 
         try:
-            result = self._orchestrator.process(str(file_path))
+            result = self._orchestrator.process(str(file_path), progress_callback=progress_callback)
             logger.info(
                 "financial_processed",
                 file=str(file_path),

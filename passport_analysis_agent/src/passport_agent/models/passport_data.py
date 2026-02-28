@@ -109,5 +109,8 @@ class VisualExtractionResponse(BaseModel):
     sex: str | None = None
     place_of_birth: str | None = None
     confidence: float = 0.0
+    accuracy_score: int = 0
+    is_passport: bool = Field(default=True, description="Whether this is a valid passport with typical 2-line MRZ zone")
+    justification: str | None = None
 
     model_config = {"extra": "ignore"}

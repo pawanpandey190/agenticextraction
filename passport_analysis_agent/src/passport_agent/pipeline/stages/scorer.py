@@ -38,8 +38,8 @@ class ScorerStage(PipelineStage):
         field_match_score = self._calculate_field_match_score(context)
         ocr_score = self._calculate_ocr_score(context)
 
-        # Total score
-        total_score = round(checksum_score + field_match_score + ocr_score)
+        # Total score: Use LLM score if available, otherwise use calculated score
+        total_score = context.llm_score if context.llm_score is not None else round(checksum_score + field_match_score + ocr_score)
         total_score = max(0, min(100, total_score))  # Clamp to 0-100
 
         # Determine confidence level
@@ -63,11 +63,14 @@ class ScorerStage(PipelineStage):
             mrz_checksum_validation=mrz_checksum_validation,
             accuracy_score=total_score,
             confidence_level=confidence_level,
+            llm_score=context.llm_score,
+            score_reason=context.score_reason,
+            is_passport=context.is_passport,
             processing_errors=context.metadata.errors.copy(),
             processing_warnings=context.metadata.warnings.copy(),
             source_file=context.file_path,
             processing_time_seconds=context.metadata.processing_time_seconds,
-            remarks=self._generate_remarks(total_score, confidence_level, context)
+            remarks=context.score_reason if context.score_reason else self._generate_remarks(total_score, confidence_level, context)
         )
 
         context.final_result = result

@@ -33,6 +33,9 @@ class PipelineContext:
     mrz_raw_text: str | None = None
     mrz_data: MRZData | None = None
     cross_validation: CrossValidationResult | None = None
+    is_passport: bool = True
+    llm_score: int | None = None
+    score_reason: str | None = None
     final_result: PassportAnalysisResult | None = None
 
     # Configuration

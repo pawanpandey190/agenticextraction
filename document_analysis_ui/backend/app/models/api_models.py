@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from app.models.session import SessionStatus
+from app.models.session import SessionStatus, EvaluationLevel
 
 
 class CreateSessionRequest(BaseModel):
@@ -12,6 +12,7 @@ class CreateSessionRequest(BaseModel):
 
     financial_threshold: float = Field(default=15000.0, description="Financial worthiness threshold in EUR")
     bank_statement_period: int = Field(default=3, description="Required bank statement period in months")
+    evaluation_level: EvaluationLevel = Field(default=EvaluationLevel.BACHELORS, description="Academic level for evaluation")
 
 
 class CreateSessionResponse(BaseModel):
@@ -33,6 +34,7 @@ class SessionResponse(BaseModel):
     total_files: int
     financial_threshold: float
     bank_statement_period: int
+    evaluation_level: EvaluationLevel
     result_available: bool
     letter_available: bool = False
     error_message: str | None = None

@@ -35,8 +35,9 @@ class MRZParserStage(PipelineStage):
             Updated context with parsed MRZ data
         """
         if not context.mrz_raw_text:
-            context.add_warning("No MRZ text to parse")
-            context.set_stage_result(self.name, {"parsed": False, "reason": "no_text"})
+            context.add_warning("STRICT VALIDATION: No MRZ text detected. Document is likely NOT a passport.")
+            context.is_passport = False
+            context.set_stage_result(self.name, {"parsed": False, "reason": "no_text", "is_passport": False})
             return context
 
         try:
@@ -50,14 +51,16 @@ class MRZParserStage(PipelineStage):
                     lines = self._reconstruct_from_visual(context)
                 
                 if lines is None:
-                    context.add_warning("Could not identify or reconstruct valid MRZ lines")
+                    context.add_warning("STRICT VALIDATION: No 2-line MRZ detected. Re-classifying document as NON-PASSPORT.")
+                    context.is_passport = False
                     context.set_stage_result(
-                        self.name, {"parsed": False, "reason": "invalid_lines"}
+                        self.name, {"parsed": False, "reason": "non_passport", "is_passport": False}
                     )
                     return context
 
-            # Parse detected MRZ lines
-            mrz_data = self.mrz_service.parse(lines)
+            # Parse detected MRZ lines with VIZ witness support
+            viz_witness = context.visual_data.passport_number if context.visual_data else None
+            mrz_data = self.mrz_service.parse(lines, viz_witness=viz_witness)
             context.mrz_data = mrz_data
 
             # Log checksum results

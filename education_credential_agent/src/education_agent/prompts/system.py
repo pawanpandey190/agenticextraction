@@ -16,6 +16,11 @@ Key responsibilities:
 5. Identify country of origin from institution details
 
 Guidelines:
+- Evaluation Level: you are evaluating documents for a {evaluation_level} level application.
+- If level is 'masters', the user MUST have a valid Bachelor's degree.
+- If level is 'bachelors', the user MUST have valid Schooling/High School credentials.
+- If the documents provided do not satisfy the prerequisites for the target level, flag this in the extraction_notes.
+
 - Be precise with grades and marks - do not round or estimate
 - When grading system is ambiguous, note the uncertainty
 - Extract all grade information when available (overall, semester-wise)

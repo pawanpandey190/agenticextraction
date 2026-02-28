@@ -37,6 +37,9 @@ interface BackendPassportDetails {
   confidence_level?: string;
   remarks?: string;
   french_equivalence?: string | null;
+  llm_score?: number | null;
+  score_reason?: string | null;
+  is_passport?: boolean;
 }
 
 interface BackendFinancialSummary {
@@ -96,6 +99,9 @@ export function transformResult(backend: BackendAnalysisResult): AnalysisResult 
     confidence_level: backend.passport_details.confidence_level || null,
     remarks: backend.passport_details.remarks || null,
     french_equivalence: backend.passport_details.french_equivalence || null,
+    llm_score: backend.passport_details.llm_score ?? null,
+    score_reason: backend.passport_details.score_reason || null,
+    is_passport: backend.passport_details.is_passport ?? true,
   } : null;
 
   const financial: FinancialSummary | null = backend.financial_summary ? {
@@ -218,12 +224,17 @@ class ApiClient {
   }
 
   // Session endpoints
-  async createSession(financialThreshold: number = 15000, bankStatementPeriod: number = 3): Promise<CreateSessionResponse> {
+  async createSession(
+    financialThreshold: number = 15000,
+    bankStatementPeriod: number = 3,
+    evaluationLevel: string = 'bachelors'
+  ): Promise<CreateSessionResponse> {
     return this.request<CreateSessionResponse>('/sessions', {
       method: 'POST',
       body: JSON.stringify({
         financial_threshold: financialThreshold,
-        bank_statement_period: bankStatementPeriod
+        bank_statement_period: bankStatementPeriod,
+        evaluation_level: evaluationLevel
       }),
     });
   }
@@ -353,7 +364,8 @@ class ApiClient {
   async uploadBatchFolders(
     files: File[],
     financialThreshold: number = 15000,
-    bankStatementPeriod: number = 3
+    bankStatementPeriod: number = 3,
+    evaluationLevel: string = 'bachelors'
   ): Promise<BatchUploadResponse> {
     const formData = new FormData();
     files.forEach(file => {
@@ -364,7 +376,7 @@ class ApiClient {
 
     const token = localStorage.getItem('token');
     return this.request<BatchUploadResponse>(
-      `/batches/upload?financial_threshold=${financialThreshold}&bank_statement_period=${bankStatementPeriod}${token ? `&token=${token}` : ''}`,
+      `/batches/upload?financial_threshold=${financialThreshold}&bank_statement_period=${bankStatementPeriod}&evaluation_level=${evaluationLevel}${token ? `&token=${token}` : ''}`,
       {
         method: 'POST',
         body: formData,

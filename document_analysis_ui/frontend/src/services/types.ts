@@ -10,6 +10,7 @@ export interface Session {
   total_files: number;
   financial_threshold: number;
   bank_statement_period: number;
+  evaluation_level: string;
   result_available: boolean;
   letter_available: boolean;
   error_message: string | null;
@@ -61,6 +62,9 @@ export interface PassportDetails {
   confidence_level: string | null;
   remarks: string | null;
   french_equivalence: string | null;
+  llm_score: number | null;
+  score_reason: string | null;
+  is_passport: boolean;
 }
 
 export interface FinancialSummary {

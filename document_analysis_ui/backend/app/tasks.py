@@ -102,6 +102,7 @@ def run_analysis_task(self, session_id: str):
             output_format=OutputFormat.BOTH,
             bank_statement_months=session.bank_statement_period,
             financial_threshold=session.financial_threshold,
+            evaluation_level=session.evaluation_level.value if hasattr(session.evaluation_level, 'value') else str(session.evaluation_level),
         )
 
         # 6. Post-processing (Letter generation)

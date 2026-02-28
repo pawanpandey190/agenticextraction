@@ -30,6 +30,9 @@ class PassportDetails(BaseModel):
     expiry_date: str | None = None  # ISO format YYYY-MM-DD
     mrz_data: MRZDetails | None = None
     accuracy_score: int = 0  # 0-100
+    llm_score: int | None = None
+    score_reason: str | None = None
+    is_passport: bool = True
     confidence_level: str | None = None
     remarks: str = ""
     french_equivalence: str | None = None
@@ -138,6 +141,9 @@ class MasterAnalysisResult(BaseModel):
                     else {}
                 ),
                 "accuracy_score": self.passport_details.accuracy_score,
+                "llm_score": self.passport_details.llm_score,
+                "score_reason": self.passport_details.score_reason,
+                "is_passport": self.passport_details.is_passport,
                 "confidence_level": self.passport_details.confidence_level,
                 "remarks": self.passport_details.remarks,
                 "french_equivalence": self.passport_details.french_equivalence,

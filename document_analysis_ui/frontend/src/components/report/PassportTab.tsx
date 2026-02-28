@@ -74,6 +74,27 @@ export function PassportTab({ data }: PassportTabProps) {
             <Field label="Expiry Date" value={data.expiry_date} icon={<Calendar className="w-4 h-4" />} />
           </GlassCard>
         </div>
+
+        {data.llm_score !== null && (
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] px-2 flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5" /> AI Safety Badge
+            </h3>
+            <GlassCard className={`p-6 ${data.is_passport ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <span className={`font-black ${data.is_passport ? 'text-2xl text-emerald-600' : 'text-sm uppercase tracking-tight text-red-600 italic'}`}>
+                  {data.is_passport ? `${data.llm_score}/100` : 'The uploaded document is not a passport'}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${data.is_passport ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  {data.is_passport ? 'Passport Verified' : 'Non-Passport Detected'}
+                </span>
+              </div>
+              <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                {data.score_reason || (data.is_passport ? 'This document exhibits standard passport architecture and high clarity.' : 'This document does not conform to 2-line TD3 passport standards.')}
+              </p>
+            </GlassCard>
+          </div>
+        )}
       </div>
 
       {/* Technical Info & Remarks */}
@@ -82,7 +103,7 @@ export function PassportTab({ data }: PassportTabProps) {
           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] px-2 flex items-center gap-2">
             <Info className="w-3.5 h-3.5" /> Machine Readable Zone (MRZ)
           </h3>
-          <GlassCard className="p-6 font-mono text-xs leading-loose tracking-wider break-all bg-slate-900 text-brand-primary shadow-xl border-slate-900 rounded-2xl">
+          <GlassCard className="p-6 font-mono text-xs leading-loose tracking-wider break-all bg-slate-900 text-white shadow-xl border-slate-900 rounded-2xl">
             <div className="opacity-90 whitespace-pre-wrap">{data.mrz_line1 || 'MRZ lines not available'}</div>
             {data.mrz_line2 && <div className="opacity-90 whitespace-pre-wrap">{data.mrz_line2}</div>}
             {data.mrz_line3 && <div className="opacity-90 whitespace-pre-wrap">{data.mrz_line3}</div>}

@@ -13,6 +13,8 @@ interface DocumentUploadProps {
   onThresholdChange: (value: number) => void;
   bankStatementPeriod: number;
   onPeriodChange: (value: number) => void;
+  evaluationLevel: string;
+  onLevelChange: (value: string) => void;
 }
 
 export function DocumentUpload({
@@ -25,6 +27,8 @@ export function DocumentUpload({
   onThresholdChange,
   bankStatementPeriod,
   onPeriodChange,
+  evaluationLevel,
+  onLevelChange,
 }: DocumentUploadProps) {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
@@ -79,6 +83,21 @@ export function DocumentUpload({
               disabled={isLoading}
               placeholder="e.g. 3"
             />
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">
+                Evaluation Goal
+              </label>
+              <select
+                value={evaluationLevel}
+                onChange={(e) => onLevelChange(e.target.value)}
+                disabled={isLoading}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-slate-900 font-bold transition-all"
+              >
+                <option value="bachelors">Bachelors Admission</option>
+                <option value="masters">Masters Admission</option>
+              </select>
+            </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
               <div className="flex items-center gap-2 text-brand-primary/60">

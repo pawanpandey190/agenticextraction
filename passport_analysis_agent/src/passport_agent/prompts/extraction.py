@@ -22,9 +22,15 @@ IMPORTANT: Pay special attention to the name fields to ensure high accuracy.
 9. sex: M for Male, F for Female, X for Unspecified.
 10. place_of_birth: City/country of birth (if visible).
 11. confidence: Your confidence score (0.0-1.0).
+12. accuracy_score: An overall assessment of the document's validity and readability (0-100).
+13. is_passport: Boolean. Set to true ONLY if the document is a valid passport with a 2-line TD3 MRZ. Set to false for ID cards, visas, or random papers.
+14. justification: A detailed multi-sentence explanation for the accuracy_score and passport status.
 
 Guidelines for Data Accuracy:
-- AVOID HALLUCINATIONS: Do not confuse city names (like LUBUMBASHI, KINSHASA, etc.) with person names. Names are usually labeled "Nom", "Prénoms" or "Nom de famille".
+- AVOID HALLUCINATIONS: Do not confuse city names with person names.
+- ACCURACY SCORE: Assign a score based on image resolution, authenticity, and readability.
+- IS PASSPORT: This system specifically validates PASS-PORTS. If you see an ID Card, Residence Permit, or Visa, set is_passport to false.
+- JUSTIFICATION: If the document is NOT a passport, set accuracy_score to 0 and explain why.
 - Convert names to UPPERCASE.
 - Ignore titles (Mr, Ms, Dr, etc.).
 - NEVER include MRZ-specific prefixes (like "P<", "ETH", "P") in name fields.

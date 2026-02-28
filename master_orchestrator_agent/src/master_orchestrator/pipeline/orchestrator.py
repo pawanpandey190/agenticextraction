@@ -88,6 +88,7 @@ class MasterOrchestrator:
         output_format: OutputFormat | None = None,
         bank_statement_months: int | None = None,
         financial_threshold: float | None = None,
+        evaluation_level: str | None = None,
     ) -> MasterAnalysisResult:
         """Process all documents in a folder.
 
@@ -118,6 +119,7 @@ class MasterOrchestrator:
             settings=self._settings,
             bank_statement_months=bank_statement_months,
             financial_threshold=financial_threshold,
+            evaluation_level=evaluation_level,
         )
 
         # Initialize stages
@@ -185,6 +187,7 @@ class MasterOrchestrator:
         output_format: OutputFormat | None = None,
         bank_statement_months: int | None = None,
         financial_threshold: float | None = None,
+        evaluation_level: str | None = None,
     ) -> tuple[MasterAnalysisResult, MasterPipelineContext]:
         """Process documents and return both result and context.
 

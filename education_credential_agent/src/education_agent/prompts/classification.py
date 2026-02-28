@@ -17,7 +17,7 @@ Classify into one of these document types:
 ## Academic Level Classification
 
 Determine the academic level:
-1. SECONDARY - High school / Secondary education
+1. SECONDARY - High school / Secondary education (A-Levels, International Baccalaureate, High School Diploma, etc.)
 2. DIPLOMA - Diploma / Certificate programs (non-degree)
 3. BACHELOR - Bachelor's degree (B.Tech, B.E., B.Sc., B.A., B.Com, BBA, BCA, etc.)
 4. MASTER - Master's degree (M.Tech, M.E., M.Sc., M.A., MBA, MCA, etc.)

@@ -39,12 +39,40 @@ class SemesterValidatorStage(PipelineStage):
             if c.academic_level == AcademicLevel.BACHELOR
         ]
 
-        if not bachelor_credentials:
-            self.logger.info("No Bachelor's degrees found, skipping semester validation")
+        # NEW: Skip semester logic for Bachelors Admission level (CHECK THIS FIRST)
+        if context.evaluation_level == "bachelors":
+            self.logger.info("Bachelors Admission selected, skipping strict semester validation")
             context.set_stage_result(self.name, {
-                "validation_applied": False,
-                "reason": "No Bachelor's degrees found",
+                "validation_applied": True,
+                "status": "VALID",
+                "is_complete": True,
+                "reason": "skipped_for_bachelors_admission",
+                "notes": "Semester validation not required for Bachelors admission stage."
             })
+            return context
+
+        if not bachelor_credentials:
+            if context.evaluation_level == "masters":
+                self.logger.info("Masters Admission selected but no Bachelor's found, reporting all semesters as missing")
+                expected = self.settings.default_bachelor_semesters
+                context.set_stage_result(self.name, {
+                    "validation_applied": True,
+                    "status": "INCOMPLETE",
+                    "expected_semesters": expected,
+                    "found_semesters": [],
+                    "missing_semesters": list(range(1, expected + 1)),
+                    "is_complete": False,
+                    "reason": "masters_missing_bachelor",
+                    "notes": "Evaluation level is Masters but no Bachelor credential found."
+                })
+            else:
+                self.logger.info("No Bachelor's degrees found, skipping semester validation")
+                context.set_stage_result(self.name, {
+                    "validation_applied": False,
+                    "status": "VALID",
+                    "reason": "skipped_no_bachelors_found",
+                    "notes": "No Bachelor's degree found to validate semesters for."
+                })
             return context
 
         # Determine expected semesters from the Bachelor's degree

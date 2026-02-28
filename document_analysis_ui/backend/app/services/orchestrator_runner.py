@@ -321,7 +321,8 @@ class OrchestratorRunner:
                 progress_callback, 
                 session_id,
                 bank_statement_months=session.bank_statement_period,
-                financial_threshold=session.financial_threshold
+                financial_threshold=session.financial_threshold,
+                evaluation_level=session.evaluation_level.value if hasattr(session.evaluation_level, 'value') else str(session.evaluation_level)
             )
             
             # Post-processing logic (moved from run_with_progress)
@@ -408,6 +409,7 @@ class OrchestratorRunner:
         session_id: str,
         bank_statement_months: int | None = None,
         financial_threshold: float | None = None,
+        evaluation_level: str | None = None,
     ):
         """Run orchestrator with timeout and retry logic.
         
@@ -450,7 +452,8 @@ class OrchestratorRunner:
                             output_dir,
                             progress_callback,
                             bank_statement_months=bank_statement_months,
-                            financial_threshold=financial_threshold
+                            financial_threshold=financial_threshold,
+                            evaluation_level=evaluation_level
                         ),
                         timeout=timeout
                     )
@@ -506,6 +509,7 @@ class OrchestratorRunner:
         progress_callback: ProgressCallback,
         bank_statement_months: int | None = None,
         financial_threshold: float | None = None,
+        evaluation_level: str | None = None,
     ):
         """Run the orchestrator synchronously (called from thread pool).
 
@@ -529,6 +533,7 @@ class OrchestratorRunner:
                 output_format=OutputFormat.BOTH,
                 bank_statement_months=bank_statement_months,
                 financial_threshold=financial_threshold,
+                evaluation_level=evaluation_level,
             )
             return result
         except ImportError as e:

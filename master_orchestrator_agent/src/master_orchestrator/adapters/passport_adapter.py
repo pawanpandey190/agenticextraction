@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import structlog
 
@@ -60,11 +60,12 @@ class PassportAgentAdapter:
                 {"error": str(e)},
             )
 
-    def process(self, file_path: Path) -> Any:
+    def process(self, file_path: Path, progress_callback: Callable[[str, int, int], None] | None = None) -> Any:
         """Process a passport document.
 
         Args:
             file_path: Path to the passport document
+            progress_callback: Optional progress callback
 
         Returns:
             PassportAnalysisResult from the passport agent
@@ -74,7 +75,7 @@ class PassportAgentAdapter:
         logger.info("processing_passport", file=str(file_path))
 
         try:
-            result = self._orchestrator.process(str(file_path))
+            result = self._orchestrator.process(str(file_path), progress_callback=progress_callback)
             logger.info(
                 "passport_processed",
                 file=str(file_path),

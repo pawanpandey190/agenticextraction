@@ -79,16 +79,23 @@ class GradeConverterStage(PipelineStage):
             if highest_cred.final_grade.numeric_value is None or highest_cred.final_grade.numeric_value == 0:
                 self._aggregate_semester_grades(highest_cred, context.credentials)
 
-            if highest_cred.final_grade.numeric_value is None:
+            # Allow conversion if we have either a numeric value OR an original string value for letter grades
+            can_convert = (
+                highest_cred.final_grade.numeric_value is not None or 
+                (highest_cred.final_grade.grading_system == GradingSystem.LETTER_GRADE and highest_cred.final_grade.original_value) or
+                (highest_cred.final_grade.grading_system == GradingSystem.UK_HONORS and highest_cred.final_grade.original_value)
+            )
+
+            if not can_convert:
                 self.logger.warning(
-                    f"No numeric grade value for {highest_cred.source_file} after aggregation, skipping conversion"
+                    f"Insufficient grade data for {highest_cred.source_file} after aggregation, skipping conversion"
                 )
                 context.set_stage_result(self.name, {
                     "conversions_attempted": 1,
                     "conversions_successful": 0,
                     "table_version": table.version if table else None,
                     "credential_converted": highest_cred.source_file,
-                    "reason": "No numeric grade value",
+                    "reason": "Insufficient grade data (no numeric or letter grade)",
                 })
                 return context
 
@@ -275,10 +282,11 @@ class GradeConverterStage(PipelineStage):
             French scale equivalent (0-20) or None if conversion not possible
         """
         numeric_value = grade.numeric_value
-        if numeric_value is None:
-            return None
-
         grading_system = grade.grading_system
+
+        # For letter-based systems, we can proceed even without a numeric value
+        if numeric_value is None and grading_system not in [GradingSystem.LETTER_GRADE, GradingSystem.UK_HONORS]:
+            return None
 
         # Cap percentage at 100
         if grading_system == GradingSystem.PERCENTAGE:

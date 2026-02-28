@@ -9,7 +9,7 @@ from typing import AsyncIterator
 import structlog
 
 from app.config import settings
-from app.models.session import Session, SessionStatus
+from app.models.session import EvaluationLevel, Session, SessionStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -96,6 +96,7 @@ class SessionManager:
         self,
         financial_threshold: float = 15000.0,
         bank_statement_period: int = 3,
+        evaluation_level: EvaluationLevel = EvaluationLevel.BACHELORS,
         batch_id: str | None = None,
         student_name: str | None = None,
         student_folder: str | None = None,
@@ -115,6 +116,7 @@ class SessionManager:
         session = Session(
             financial_threshold=financial_threshold,
             bank_statement_period=bank_statement_period,
+            evaluation_level=evaluation_level,
             batch_id=batch_id,
             student_name=student_name,
             student_folder=student_folder,

@@ -19,7 +19,7 @@ logger = structlog.get_logger(__name__)
 
 CLASSIFICATION_PROMPT = """Analyze this document image and classify it into one of the following categories:
 
-1. PASSPORT - Identity documents such as passports, ID cards, or travel documents
+1. PASSPORT - Identity documents such as passports, ID cards, or travel documents. CRITICAL: Do NOT classify academic certificates or diplomas as passports.
 2. FINANCIAL - Banking documents such as bank statements, balance certificates, bank letters, or financial statements
 3. EDUCATION - Academic documents such as transcripts, degrees, diplomas, certificates, or mark sheets
 
@@ -27,7 +27,7 @@ Respond with ONLY a JSON object in this exact format:
 {
     "category": "PASSPORT" | "FINANCIAL" | "EDUCATION",
     "confidence": 0.0-1.0,
-    "reasoning": "Brief explanation"
+    "reasoning": "Brief explanation. If PASSPORT, explain how it is clearly an identity document and NOT a diploma."
 }
 
 If you cannot determine the category, respond with:

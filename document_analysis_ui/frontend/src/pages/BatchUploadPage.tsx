@@ -9,6 +9,7 @@ export function BatchUploadPage() {
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [financialThreshold, setFinancialThreshold] = useState(15000);
     const [bankStatementPeriod, setBankStatementPeriod] = useState(3);
+    const [evaluationLevel, setEvaluationLevel] = useState('bachelors');
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +29,7 @@ export function BatchUploadPage() {
 
         try {
             // Step 1: Upload batch folders
-            const response = await api.uploadBatchFolders(selectedFiles, financialThreshold, bankStatementPeriod);
+            const response = await api.uploadBatchFolders(selectedFiles, financialThreshold, bankStatementPeriod, evaluationLevel);
 
             // Step 2: Navigate to batch results page (Processing is started automatically by backend)
             navigate(`/batch/${response.batch_id}`);
@@ -159,6 +160,27 @@ export function BatchUploadPage() {
                         />
                         <p className="mt-4 text-xs text-slate-400 font-medium leading-relaxed italic">
                             Required temporal breadth for bank records to achieve verification integrity.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8 space-y-6 md:col-span-2">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic mb-2">Academic Alignment</h3>
+                    <div>
+                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3 px-1">
+                            Target Evaluation Level
+                        </label>
+                        <select
+                            value={evaluationLevel}
+                            onChange={(e) => setEvaluationLevel(e.target.value)}
+                            disabled={isUploading}
+                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-slate-900 font-bold transition-all"
+                        >
+                            <option value="bachelors">Bachelors Admission</option>
+                            <option value="masters">Masters Admission</option>
+                        </select>
+                        <p className="mt-4 text-xs text-slate-400 font-medium leading-relaxed italic">
+                            The system will enforce hierarchical document requirements based on this selection.
                         </p>
                     </div>
                 </div>

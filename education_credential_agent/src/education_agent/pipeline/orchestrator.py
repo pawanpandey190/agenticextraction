@@ -1,6 +1,7 @@
 """Pipeline orchestrator for document processing."""
 
 import structlog
+from typing import Callable
 
 from ..config.settings import Settings
 from ..models.evaluation import AnalysisResult
@@ -60,11 +61,18 @@ class PipelineOrchestrator:
             grade_table_path=grade_table_path,
         )
 
-    def process_folder(self, folder_path: str) -> AnalysisResult:
+    def process_folder(
+        self, 
+        folder_path: str,
+        evaluation_level: str | None = None,
+        progress_callback: Callable[[str, int, int], None] | None = None
+    ) -> AnalysisResult:
         """Process all documents in a folder.
 
         Args:
             folder_path: Path to folder containing documents
+            evaluation_level: Optional evaluation level
+            progress_callback: Optional progress callback
 
         Returns:
             Analysis result
@@ -79,15 +87,23 @@ class PipelineOrchestrator:
             folder_path=folder_path,
             settings=self.settings,
             grade_conversion_table=self.grade_table_service.get_table(),
+            evaluation_level=evaluation_level,
         )
 
-        return self._execute_pipeline(context)
+        return self._execute_pipeline(context, progress_callback=progress_callback)
 
-    def process_files(self, file_paths: list[str]) -> AnalysisResult:
+    def process_files(
+        self, 
+        file_paths: list[str],
+        evaluation_level: str | None = None,
+        progress_callback: Callable[[str, int, int], None] | None = None
+    ) -> AnalysisResult:
         """Process specific files.
 
         Args:
             file_paths: List of file paths to process
+            evaluation_level: Optional evaluation level
+            progress_callback: Optional progress callback
 
         Returns:
             Analysis result
@@ -102,20 +118,25 @@ class PipelineOrchestrator:
             file_paths=file_paths,
             settings=self.settings,
             grade_conversion_table=self.grade_table_service.get_table(),
+            evaluation_level=evaluation_level,
         )
 
-        return self._execute_pipeline(context)
+        return self._execute_pipeline(context, progress_callback=progress_callback)
 
     def process(
         self,
         folder_path: str | None = None,
         file_paths: list[str] | None = None,
+        evaluation_level: str | None = None,
+        progress_callback: Callable[[str, int, int], None] | None = None
     ) -> AnalysisResult:
         """Process documents from folder and/or file list.
 
         Args:
             folder_path: Optional folder path
             file_paths: Optional list of file paths
+            evaluation_level: Optional evaluation level
+            progress_callback: Optional progress callback
 
         Returns:
             Analysis result
@@ -138,15 +159,21 @@ class PipelineOrchestrator:
             file_paths=file_paths or [],
             settings=self.settings,
             grade_conversion_table=self.grade_table_service.get_table(),
+            evaluation_level=evaluation_level,
         )
 
-        return self._execute_pipeline(context)
+        return self._execute_pipeline(context, progress_callback=progress_callback)
 
-    def _execute_pipeline(self, context: PipelineContext) -> AnalysisResult:
+    def _execute_pipeline(
+        self, 
+        context: PipelineContext,
+        progress_callback: Callable[[str, int, int], None] | None = None
+    ) -> AnalysisResult:
         """Execute the pipeline stages.
 
         Args:
             context: Pipeline context
+            progress_callback: Optional progress callback
 
         Returns:
             Analysis result
@@ -156,7 +183,11 @@ class PipelineOrchestrator:
         """
         try:
             # Execute each stage
-            for stage in self.stages:
+            total_stages = len(self.stages)
+            for i, stage in enumerate(self.stages):
+                if progress_callback:
+                    progress_callback(stage.name, i + 1, total_stages)
+                
                 context = stage.execute(context)
 
             # Mark processing complete
@@ -195,6 +226,7 @@ class PipelineOrchestrator:
         self,
         folder_path: str | None = None,
         file_paths: list[str] | None = None,
+        evaluation_level: str | None = None,
     ) -> tuple[AnalysisResult, PipelineContext]:
         """Process documents and return both result and context.
 
@@ -223,6 +255,7 @@ class PipelineOrchestrator:
             file_paths=file_paths or [],
             settings=self.settings,
             grade_conversion_table=self.grade_table_service.get_table(),
+            evaluation_level=evaluation_level,
         )
 
         try:

@@ -48,6 +48,10 @@ class ExtractorStage(PipelineStage):
                 continue
 
             try:
+                # Format system prompt with evaluation level
+                eval_level = context.evaluation_level or "bachelors"
+                formatted_system_prompt = SYSTEM_PROMPT.format(evaluation_level=eval_level)
+
                 # Get first page image if available
                 first_page_image = context.get_first_page_image(file_path)
 
@@ -57,13 +61,13 @@ class ExtractorStage(PipelineStage):
                         text=extracted_text,
                         image_base64=base64_data,
                         mime_type=mime_type,
-                        system_prompt=SYSTEM_PROMPT,
+                        system_prompt=formatted_system_prompt,
                         extraction_prompt=EXTRACTION_PROMPT,
                     )
                 else:
                     result = self.llm_service.extract_credentials(
                         text=extracted_text,
-                        system_prompt=SYSTEM_PROMPT,
+                        system_prompt=formatted_system_prompt,
                         extraction_prompt=EXTRACTION_PROMPT,
                     )
 

@@ -6,7 +6,7 @@ interface UseSessionReturn {
   session: Session | null;
   isLoading: boolean;
   error: string | null;
-  createSession: (financialThreshold?: number, bankStatementPeriod?: number) => Promise<Session>;
+  createSession: (financialThreshold?: number, bankStatementPeriod?: number, evaluationLevel?: string) => Promise<Session>;
   loadSession: (sessionId: string) => Promise<void>;
   uploadFiles: (files: File[], sessionId?: string) => Promise<UploadResponse>;
   deleteFile: (filename: string) => Promise<void>;
@@ -19,11 +19,15 @@ export function useSession(): UseSessionReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const createSession = useCallback(async (financialThreshold: number = 15000, bankStatementPeriod: number = 3) => {
+  const createSession = useCallback(async (
+    financialThreshold: number = 15000,
+    bankStatementPeriod: number = 3,
+    evaluationLevel: string = 'bachelors'
+  ) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.createSession(financialThreshold, bankStatementPeriod);
+      const response = await api.createSession(financialThreshold, bankStatementPeriod, evaluationLevel);
       const newSession = await api.getSession(response.session_id);
       setSession(newSession);
       return newSession;

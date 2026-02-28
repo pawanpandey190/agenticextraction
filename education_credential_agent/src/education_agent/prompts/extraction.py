@@ -24,6 +24,10 @@ EXTRACTION_PROMPT = """Extract all relevant credential information from this edu
 - final_grade_numeric: Numeric value if applicable
 - max_possible_grade: Maximum possible grade in the system (e.g., 100 for percentage, 4.0 for GPA)
 
+### Secondary School / A-Level Specifics:
+- For high school or A-level certificates, look for "Total Marks", "Result", "Grade", or individual subject grades if no total is given.
+- If multiple subjects are listed with grades (A, B, C), extract the most representative aggregate grade or list the most important ones in extraction_notes.
+
 ### Semester/Yearly Information (if this is a semester/yearly mark sheet)
 - semester_number: Semester number (1, 2, 3, etc.) or Year number (1, 2, 3)
 - academic_year: Academic year (e.g., "2020-2021")

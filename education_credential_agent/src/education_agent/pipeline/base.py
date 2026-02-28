@@ -23,6 +23,7 @@ class PipelineContext:
     folder_path: str | None = None
     file_paths: list[str] = field(default_factory=list)
     settings: Settings | None = None
+    evaluation_level: str | None = None
 
     # Grade conversion table
     grade_conversion_table: GradeConversionTable | None = None

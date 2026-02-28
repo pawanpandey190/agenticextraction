@@ -34,8 +34,19 @@ class PassportAnalysisResult(BaseModel):
     accuracy_score: int = Field(
         default=0, ge=0, le=100, description="Overall accuracy score (0-100)"
     )
+    llm_score: int | None = Field(
+        default=None, description="Score generated directly by the LLM"
+    )
+    score_reason: str | None = Field(
+        default=None, description="Justification for the accuracy score provided by the LLM"
+    )
     confidence_level: Literal["LOW", "MEDIUM", "HIGH"] = Field(
         default="LOW", description="Confidence level based on score"
+    )
+
+    # Validation flags
+    is_passport: bool = Field(
+        default=True, description="Whether the document was identified as a valid passport"
     )
 
     # Errors and warnings

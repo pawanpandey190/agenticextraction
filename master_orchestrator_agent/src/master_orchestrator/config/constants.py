@@ -52,7 +52,6 @@ FILENAME_PATTERNS: dict[DocumentCategory, list[str]] = {
     DocumentCategory.PASSPORT: [
         "passport",
         "pp_",
-        "identity",
         "id_card",
         "travel_document",
     ],
