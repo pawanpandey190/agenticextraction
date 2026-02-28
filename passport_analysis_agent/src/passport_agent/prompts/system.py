@@ -31,17 +31,18 @@ Naming Rules:
 Be precise and avoid guessing. If text is partially obscured or unclear, indicate lower confidence. Use the MRZ at the bottom as a cross-reference for names if visible, but prioritize the Visual Inspection Zone (VIZ) for the full, non-truncated names.
 """
 
-MRZ_EXTRACTION_SYSTEM_PROMPT = """You are a specialized MRZ (Machine Readable Zone) reader for passport documents.
+MRZ_EXTRACTION_SYSTEM_PROMPT = """You are a specialized MRZ (Machine Readable Zone) reader for identity documents (Passports, National IDs, Visas).
 
-The MRZ is the two-line code at the bottom of passport data pages in TD3 format:
-- Line 1: 44 characters starting with P (passport type)
-- Line 2: 44 characters containing encoded personal data
+The MRZ is the multi-line code at the bottom of the document data page. Supported formats include:
+- TD1 (Identity Card): 3 lines of 30 characters each.
+- TD2 (ID/Visa): 2 lines of 36 characters each.
+- TD3 (Passport): 2 lines of 44 characters each.
 
 Key guidelines:
-1. Look for the MRZ zone at the bottom of the passport image
-2. Extract EXACTLY 2 lines of 44 characters each
-3. Use only valid MRZ characters: A-Z, 0-9, and < (filler character)
-4. Do NOT add spaces or formatting within the lines
+1. Look for the MRZ zone at the bottom of the document image.
+2. Extract the lines exactly as they appear, preserving all characters including fillers (<).
+3. Use only valid MRZ characters: A-Z, 0-9, and <.
+4. Do NOT add spaces or formatting within the lines.
 5. Be careful with similar-looking characters:
    - 0 (zero) vs O (letter O)
    - 1 (one) vs I (letter I) vs l (lowercase L)

@@ -24,10 +24,10 @@ EXTRACTION_PROMPT = """Extract all relevant credential information from this edu
 - final_grade_numeric: Numeric value if applicable
 - max_possible_grade: Maximum possible grade in the system (e.g., 100 for percentage, 4.0 for GPA)
 
-### Semester Information (if this is a semester mark sheet)
-- semester_number: Semester number (1, 2, 3, etc.)
+### Semester/Yearly Information (if this is a semester/yearly mark sheet)
+- semester_number: Semester number (1, 2, 3, etc.) or Year number (1, 2, 3)
 - academic_year: Academic year (e.g., "2020-2021")
-- semester_grade: Grade for this semester
+- semester_grade: Grade for this semester or year
 
 ### Consolidated Mark Sheet Handling
 If this document shows grades for multiple semesters/years (consolidated mark sheet):
@@ -79,12 +79,13 @@ Return your extraction as JSON:
         "grading_system": "PERCENTAGE" | "GPA_4" | "GPA_10" | "LETTER_GRADE" | "FRENCH_20" | "UK_HONORS" | "GERMAN_5" | "OTHER",
         "original_value": "string as shown on document",
         "numeric_value": number or null,  # For consolidated sheets: MUST be a single aggregated value
-        "max_possible": number or null
+        "max_possible": number or null,
+        "result_status": "PASS" | "FAIL" | "UNKNOWN"
     },
     "semester": {
-        "number": number or null,
+        "number": number or null,  # Semester or Year number
         "academic_year": "string or null",
-        "grade": "string or null"
+        "grade": "string or null"   # Grade for this semester or year
     },
     "dates": {
         "issue_date": "string or null",
@@ -92,6 +93,7 @@ Return your extraction as JSON:
         "year_of_passing": "string or null"
     },
     "is_provisional": true | false,
+    "result_status": "PASS" | "FAIL" | "UNKNOWN", # Overall status of the document
     "confidence": 0.0 to 1.0,
     "extraction_notes": "any notes about uncertain extractions"
 }

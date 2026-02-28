@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from ..config.constants import AcademicLevel, DocumentType, GradingSystem, SemesterValidationStatus
+from ..config.constants import AcademicLevel, DocumentType, GradingSystem, SemesterValidationStatus, QualificationStatus
 
 
 class DocumentAnalyzed(BaseModel):
@@ -27,6 +27,10 @@ class HighestQualification(BaseModel):
     institution: str | None = Field(default=None, description="Institution name")
     country: str | None = Field(default=None, description="Country code")
     status: str = Field(default="Unknown", description="Status (Completed, Provisional, etc.)")
+    result_status: QualificationStatus = Field(
+        default=QualificationStatus.UNKNOWN,
+        description="Overall result status (Pass/Fail)",
+    )
 
 
 class SemesterValidationResult(BaseModel):

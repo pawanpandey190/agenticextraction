@@ -30,6 +30,7 @@ interface BackendPassportDetails {
     document_type?: string;
     raw_line1?: string;
     raw_line2?: string;
+    raw_line3?: string;
     checksum_valid?: boolean | null;
   };
   accuracy_score?: number;
@@ -90,6 +91,7 @@ export function transformResult(backend: BackendAnalysisResult): AnalysisResult 
     expiry_date: backend.passport_details.expiry_date || null,
     mrz_line1: backend.passport_details.mrz_data?.raw_line1 || null,
     mrz_line2: backend.passport_details.mrz_data?.raw_line2 || null,
+    mrz_line3: backend.passport_details.mrz_data?.raw_line3 || null,
     accuracy_score: backend.passport_details.accuracy_score ?? 0,
     confidence_level: backend.passport_details.confidence_level || null,
     remarks: backend.passport_details.remarks || null,
@@ -149,13 +151,34 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    const token = localStorage.getItem('token');
+
+    const headers: Record<string, string> = {
+      ...((options.headers as Record<string, string>) || {}),
+    };
+
+    // Only set Content-Type to application/json if it's not FormData
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     });
+
+    if (response.status === 401 || response.status === 403) {
+      // Option: handle token expiry by redirecting or clearing localstorage
+      // localStorage.removeItem('token');
+    }
+
+    if (response.status === 204) {
+      return {} as T;
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
@@ -163,6 +186,35 @@ class ApiClient {
     }
 
     return response.json();
+  }
+
+  // Auth endpoints
+  async login(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
+    const formData = new URLSearchParams();
+    formData.append('username', email); // OAuth2 uses 'username'
+    formData.append('password', password);
+
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Login failed' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async register(email: string, password: string, fullName?: string): Promise<any> {
+    return this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, full_name: fullName }),
+    });
   }
 
   // Session endpoints
@@ -185,7 +237,7 @@ class ApiClient {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    await fetch(`${API_BASE}/sessions/${sessionId}`, { method: 'DELETE' });
+    await this.request<void>(`/sessions/${sessionId}`, { method: 'DELETE' });
   }
 
   // Document endpoints
@@ -193,17 +245,10 @@ class ApiClient {
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
 
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}/documents`, {
+    return this.request<UploadResponse>(`/sessions/${sessionId}/documents`, {
       method: 'POST',
       body: formData,
     });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
-      throw new Error(error.detail || `HTTP ${response.status}`);
-    }
-
-    return response.json();
   }
 
   async listDocuments(sessionId: string): Promise<{ files: string[]; total: number }> {
@@ -213,7 +258,7 @@ class ApiClient {
   }
 
   async deleteDocument(sessionId: string, filename: string): Promise<void> {
-    await fetch(`${API_BASE}/sessions/${sessionId}/documents/${filename}`, {
+    await this.request<void>(`/sessions/${sessionId}/documents/${filename}`, {
       method: 'DELETE',
     });
   }
@@ -239,7 +284,9 @@ class ApiClient {
     onError: (error: Error) => void,
     onComplete: () => void
   ): () => void {
-    const eventSource = new EventSource(`${API_BASE}/sessions/${sessionId}/progress`);
+    const token = localStorage.getItem('token');
+    const url = `${API_BASE}/sessions/${sessionId}/progress${token ? `?token=${token}` : ''}`;
+    const eventSource = new EventSource(url);
 
     eventSource.addEventListener('progress', (event) => {
       try {
@@ -288,15 +335,18 @@ class ApiClient {
 
   // Download URLs
   getJsonDownloadUrl(sessionId: string): string {
-    return `${API_BASE}/sessions/${sessionId}/download/json`;
+    const token = localStorage.getItem('token');
+    return `${API_BASE}/sessions/${sessionId}/download/json${token ? `?token=${token}` : ''}`;
   }
 
   getExcelDownloadUrl(sessionId: string): string {
-    return `${API_BASE}/sessions/${sessionId}/download/excel`;
+    const token = localStorage.getItem('token');
+    return `${API_BASE}/sessions/${sessionId}/download/excel${token ? `?token=${token}` : ''}`;
   }
 
   getLetterDownloadUrl(sessionId: string): string {
-    return `${API_BASE}/sessions/${sessionId}/download/letter`;
+    const token = localStorage.getItem('token');
+    return `${API_BASE}/sessions/${sessionId}/download/letter${token ? `?token=${token}` : ''}`;
   }
 
   // Batch upload endpoints
@@ -312,37 +362,35 @@ class ApiClient {
       formData.append('files', file, webkitPath);
     });
 
-    const response = await fetch(
-      `${API_BASE}/batches/upload?financial_threshold=${financialThreshold}&bank_statement_period=${bankStatementPeriod}`,
+    const token = localStorage.getItem('token');
+    return this.request<BatchUploadResponse>(
+      `/batches/upload?financial_threshold=${financialThreshold}&bank_statement_period=${bankStatementPeriod}${token ? `&token=${token}` : ''}`,
       {
         method: 'POST',
         body: formData,
       }
     );
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Batch upload failed' }));
-      throw new Error(error.detail || `HTTP ${response.status}`);
-    }
-
-    return response.json();
   }
 
   async getBatchStatus(batchId: string): Promise<BatchStatusResponse> {
-    return this.request<BatchStatusResponse>(`/sessions/batches/${batchId}`);
+    const token = localStorage.getItem('token');
+    return this.request<BatchStatusResponse>(`/sessions/batches/${batchId}${token ? `?token=${token}` : ''}`);
   }
 
   async getBatchSessions(batchId: string): Promise<Session[]> {
-    return this.request<Session[]>(`/sessions/batches/${batchId}/sessions`);
+    const token = localStorage.getItem('token');
+    return this.request<Session[]>(`/sessions/batches/${batchId}/sessions${token ? `?token=${token}` : ''}`);
   }
 
   // Document viewing endpoints
   getDocumentViewUrl(sessionId: string, filename: string): string {
-    return `${API_BASE}/sessions/${sessionId}/documents/${encodeURIComponent(filename)}/view`;
+    const token = localStorage.getItem('token');
+    return `${API_BASE}/sessions/${sessionId}/documents/${encodeURIComponent(filename)}/view${token ? `?token=${token}` : ''}`;
   }
 
   async listSessionDocuments(sessionId: string): Promise<DocumentListResponse> {
-    return this.request<DocumentListResponse>(`/sessions/${sessionId}/documents/list`);
+    const token = localStorage.getItem('token');
+    return this.request<DocumentListResponse>(`/sessions/${sessionId}/documents/list${token ? `?token=${token}` : ''}`);
   }
 }
 

@@ -55,7 +55,10 @@ export function HistoryPage() {
 
         const matchesDate = !dateQuery || s.created_at.startsWith(dateQuery);
 
-        return matchesSearch && matchesDate;
+        // Hide sessions that are just created but not yet processed
+        const matchesActiveStatus = s.status !== 'created';
+
+        return matchesSearch && matchesDate && matchesActiveStatus;
     });
 
     const getStatusIcon = (status: string) => {

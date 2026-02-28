@@ -56,6 +56,7 @@ export interface PassportDetails {
   expiry_date: string | null;
   mrz_line1: string | null;
   mrz_line2: string | null;
+  mrz_line3: string | null;
   accuracy_score: number | null;
   confidence_level: string | null;
   remarks: string | null;

@@ -13,6 +13,7 @@ class MRZDetails(BaseModel):
     document_type: str | None = None
     raw_line1: str | None = None
     raw_line2: str | None = None
+    raw_line3: str | None = None
     checksum_valid: bool | None = None
 
 

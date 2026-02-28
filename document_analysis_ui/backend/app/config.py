@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Session settings
-    session_base_dir: str = "/tmp/document_analysis_ui"
+    session_base_dir: str = "/app/data/sessions"
     session_expiry_hours: int = 24
     max_upload_size_mb: int = 50
 

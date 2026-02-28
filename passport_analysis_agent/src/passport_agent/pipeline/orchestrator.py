@@ -52,7 +52,7 @@ class PassportPipelineOrchestrator:
         ]
 
     def process(self, file_path: str) -> PassportAnalysisResult:
-        """Process a passport document through the pipeline.
+        """Process a passport document through the pipeline with automatic retry for low scores.
 
         Args:
             file_path: Path to the passport document
@@ -63,12 +63,36 @@ class PassportPipelineOrchestrator:
         Raises:
             Exception: If a critical stage fails
         """
-        logger.info("Starting passport analysis", file_path=file_path)
+        # Run initial attempt
+        result = self._run_pipeline(file_path, enhancement_level=0)
+        
+        # Trigger retry if score is low
+        FALLBACK_SCORE_THRESHOLD = 70
+        if result.accuracy_score < FALLBACK_SCORE_THRESHOLD:
+            logger.info("Low accuracy score detected, retrying with high enhancement", 
+                        score=result.accuracy_score, threshold=FALLBACK_SCORE_THRESHOLD)
+            
+            retry_result = self._run_pipeline(file_path, enhancement_level=1)
+            
+            if retry_result.accuracy_score > result.accuracy_score:
+                logger.info("Retry improved the score", 
+                            old_score=result.accuracy_score, 
+                            new_score=retry_result.accuracy_score)
+                result = retry_result
+            else:
+                logger.info("Retry did not improve the score, keeping original")
+
+        return result
+
+    def _run_pipeline(self, file_path: str, enhancement_level: int = 0) -> PassportAnalysisResult:
+        """Run the pipeline stages for a specific enhancement level."""
+        logger.info("Running pipeline", file_path=file_path, enhancement_level=enhancement_level)
 
         # Create context
         context = PipelineContext(
             file_path=file_path,
             settings=self.settings,
+            enhancement_level=enhancement_level
         )
 
         # Run each stage
@@ -104,13 +128,7 @@ class PassportPipelineOrchestrator:
                 remarks=f"Analysis failed to complete full scoring. Errors: {', '.join(context.metadata.errors)}" if context.metadata.errors else "Analysis incomplete due to pipeline interruption."
             )
 
-        logger.info(
-            "Passport analysis complete",
-            file_path=file_path,
-            accuracy_score=context.final_result.accuracy_score,
-            confidence_level=context.final_result.confidence_level,
-        )
-
+        context.final_result.processing_time_seconds = context.metadata.processing_time_seconds
         return context.final_result
 
     def process_batch(self, file_paths: list[str]) -> list[PassportAnalysisResult]:

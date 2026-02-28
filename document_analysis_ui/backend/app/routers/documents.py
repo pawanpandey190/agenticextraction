@@ -1,7 +1,9 @@
 """Document upload endpoints."""
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status, Query
+from fastapi import APIRouter, File, HTTPException, UploadFile, status, Query, Depends
 from fastapi.responses import FileResponse
+from app.services.auth_service import get_current_user
+from app.models.user import User
 
 from app.models.api_models import UploadResponse, BatchUploadResponse, BatchSessionInfo
 from app.models.session import SessionStatus
@@ -16,6 +18,7 @@ router = APIRouter(prefix="/api/sessions/{session_id}", tags=["documents"])
 async def upload_documents(
     session_id: str,
     files: list[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload documents to a session."""
     session = session_manager.get_session(session_id)
@@ -211,6 +214,7 @@ async def upload_batch_folders(
     files: list[UploadFile] = File(...),
     financial_threshold: float = Query(default=15000.0),
     bank_statement_period: int = Query(default=3),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload multiple student folders in batch.
     
@@ -303,7 +307,7 @@ async def upload_batch_folders(
 
 
 @router.get("/documents/{filename}/view")
-async def view_document(session_id: str, filename: str):
+async def view_document(session_id: str, filename: str, current_user: User = Depends(get_current_user)):
     """Serve a document for viewing in the browser."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -339,7 +343,7 @@ async def view_document(session_id: str, filename: str):
 
 
 @router.get("/documents/list")
-async def list_session_documents(session_id: str):
+async def list_session_documents(session_id: str, current_user: User = Depends(get_current_user)):
     """Get list of all uploaded documents for a session."""
     session = session_manager.get_session(session_id)
     if not session:

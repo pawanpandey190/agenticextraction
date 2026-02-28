@@ -19,7 +19,6 @@ services:
       - .env
       - .env.docker
     volumes:
-      - /tmp/document_analysis_ui:/tmp/document_analysis_ui
       - ./data:/app/data
       - ./logs:/app/logs
     depends_on:
@@ -42,7 +41,6 @@ services:
       - .env
       - .env.docker
     volumes:
-      - /tmp/document_analysis_ui:/tmp/document_analysis_ui
       - ./data:/app/data
       - ./logs:/app/logs
     depends_on:

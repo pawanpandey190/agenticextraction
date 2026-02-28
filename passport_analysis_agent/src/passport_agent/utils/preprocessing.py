@@ -158,6 +158,7 @@ def preprocess_passport_image(
     image: Image.Image,
     deskew: bool = True,
     enhance: bool = True,
+    enhancement_level: int = 0,
 ) -> Image.Image:
     """Apply full preprocessing pipeline to passport image.
 
@@ -165,6 +166,7 @@ def preprocess_passport_image(
         image: PIL Image object
         deskew: Whether to apply deskewing
         enhance: Whether to enhance contrast
+        enhancement_level: Level of enhancement (0 = standard, 1 = high)
 
     Returns:
         Preprocessed image
@@ -182,7 +184,11 @@ def preprocess_passport_image(
 
     # Enhance contrast if requested
     if enhance:
-        result = enhance_contrast(result, factor=1.3)
-        result = sharpen_image(result, factor=1.2)
+        # Increase factors if high enhancement requested
+        contrast_factor = 1.3 if enhancement_level == 0 else 1.8
+        sharpness_factor = 1.2 if enhancement_level == 0 else 1.5
+        
+        result = enhance_contrast(result, factor=contrast_factor)
+        result = sharpen_image(result, factor=sharpness_factor)
 
     return result

@@ -1,7 +1,9 @@
 """Processing and progress endpoints."""
 
 import json
-from fastapi import APIRouter, HTTPException, status
+from app.services.auth_service import get_current_user
+from app.models.user import User
+from fastapi import APIRouter, HTTPException, status, Depends
 from sse_starlette.sse import EventSourceResponse
 
 from app.models.api_models import ProcessRequest, ManualLetterRequest
@@ -14,7 +16,11 @@ router = APIRouter(prefix="/api/sessions/{session_id}", tags=["processing"])
 
 
 @router.post("/process", status_code=status.HTTP_202_ACCEPTED)
-async def start_processing(session_id: str, request: ProcessRequest = ProcessRequest()):
+async def start_processing(
+    session_id: str,
+    request: ProcessRequest = ProcessRequest(),
+    current_user: User = Depends(get_current_user),
+):
     """Start processing documents in a session."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -60,7 +66,7 @@ async def start_processing(session_id: str, request: ProcessRequest = ProcessReq
 
 
 @router.post("/cancel", status_code=status.HTTP_200_OK)
-async def cancel_processing(session_id: str):
+async def cancel_processing(session_id: str, current_user: User = Depends(get_current_user)):
     """Cancel processing for a session."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -102,7 +108,7 @@ async def cancel_processing(session_id: str):
 
 
 @router.get("/progress")
-async def get_progress(session_id: str):
+async def get_progress(session_id: str, current_user: User = Depends(get_current_user)):
     """Get progress updates via Server-Sent Events (SSE)."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -127,7 +133,7 @@ async def get_progress(session_id: str):
 
 
 @router.get("/result")
-async def get_result(session_id: str):
+async def get_result(session_id: str, current_user: User = Depends(get_current_user)):
     """Get the analysis result."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -167,7 +173,11 @@ async def get_result(session_id: str):
     return result
 
 @router.post("/generate-letter")
-async def generate_manual_letter(session_id: str, request: ManualLetterRequest):
+async def generate_manual_letter(
+    session_id: str,
+    request: ManualLetterRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Manually generate admission letter with overrides."""
     session = session_manager.get_session(session_id)
     if not session:

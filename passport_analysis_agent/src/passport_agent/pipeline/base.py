@@ -35,6 +35,9 @@ class PipelineContext:
     cross_validation: CrossValidationResult | None = None
     final_result: PassportAnalysisResult | None = None
 
+    # Configuration
+    enhancement_level: int = 0  # 0 = Standard, 1 = High
+
     # Metadata
     metadata: ProcessingMetadata = field(default_factory=ProcessingMetadata)
 

@@ -5,8 +5,8 @@ import io
 
 from PIL import Image
 
-# Maximum dimension for images sent to Claude Vision
-MAX_IMAGE_DIMENSION = 2048
+# Maximum dimension for images sent to Claude Vision (Increased for better OCR of small MRZ text)
+MAX_IMAGE_DIMENSION = 3072
 # Maximum file size for base64 encoded images (in bytes)
 MAX_BASE64_SIZE = 20 * 1024 * 1024  # 20MB
 
@@ -42,7 +42,7 @@ def encode_image_base64(
     image: Image.Image,
     format: str = "JPEG",
     quality: int = 85,
-    max_size: int = 2867 * 1024,  # 2.8MB target for raw bytes to stay very safely under 5MB base64
+    max_size: int = 3584 * 1024,  # 3.5MB target for raw bytes to stay under 5MB base64
 ) -> tuple[str, str]:
     """Encode a PIL Image to base64 string with size management.
 

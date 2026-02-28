@@ -3,7 +3,7 @@
 import re
 from statistics import mean
 
-from ...config.constants import DocumentType, GradingSystem
+from ...config.constants import DocumentType, GradingSystem, QualificationStatus
 from ...config.settings import Settings
 from ...models.credential_data import GradeInfo, Institution
 from ...prompts.extraction import EXTRACTION_PROMPT
@@ -142,11 +142,20 @@ class ExtractorStage(PipelineStage):
                         )
                         original_value = f"{numeric_value}% (calculated average)"
 
+            # Result status from grade
+            g_status = QualificationStatus.UNKNOWN
+            if s := grade.get("result_status"):
+                try:
+                    g_status = QualificationStatus(s.upper())
+                except ValueError:
+                    pass
+
             credential.final_grade = GradeInfo(
                 original_value=original_value,
                 numeric_value=numeric_value,
                 grading_system=grading_system,
                 max_possible=grade.get("max_possible"),
+                result_status=g_status,
             )
 
         # Semester info (if applicable)
@@ -160,9 +169,16 @@ class ExtractorStage(PipelineStage):
             credential.completion_date = dates.get("completion_date")
             credential.year_of_passing = dates.get("year_of_passing")
 
-        # Provisional status
+        # Status
         if result.get("is_provisional") is not None:
             credential.is_provisional = result.get("is_provisional", False)
+
+        # Overall result status
+        if status_str := result.get("result_status"):
+            try:
+                credential.result_status = QualificationStatus(status_str.upper())
+            except ValueError:
+                credential.result_status = QualificationStatus.UNKNOWN
 
         # Update confidence if provided
         if result.get("confidence") is not None:

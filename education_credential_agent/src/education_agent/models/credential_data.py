@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from ..config.constants import AcademicLevel, DocumentType, GradingSystem
+from ..config.constants import AcademicLevel, DocumentType, GradingSystem, QualificationStatus
 
 
 class Institution(BaseModel):
@@ -44,6 +44,10 @@ class GradeInfo(BaseModel):
     conversion_notes: str | None = Field(
         default=None,
         description="Notes about the conversion process",
+    )
+    result_status: QualificationStatus = Field(
+        default=QualificationStatus.UNKNOWN,
+        description="Whether the result is a pass or fail",
     )
 
     @property
@@ -160,6 +164,10 @@ class CredentialData(BaseModel):
     semester_records: list[SemesterRecord] = Field(
         default_factory=list,
         description="Individual semester records",
+    )
+    result_status: QualificationStatus = Field(
+        default=QualificationStatus.UNKNOWN,
+        description="Overall result status (Pass/Fail)",
     )
 
     # Status

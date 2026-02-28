@@ -74,20 +74,24 @@ class GradeConverterStage(PipelineStage):
             })
             return context
 
-        if highest_cred.final_grade.numeric_value is None:
-            self.logger.warning(
-                f"No numeric grade value for {highest_cred.source_file}, skipping conversion"
-            )
-            context.set_stage_result(self.name, {
-                "conversions_attempted": 1,
-                "conversions_successful": 0,
-                "table_version": table.version if table else None,
-                "credential_converted": highest_cred.source_file,
-                "reason": "No numeric grade value",
-            })
-            return context
-
         try:
+            # Aggregate semesters if final grade is missing or zero
+            if highest_cred.final_grade.numeric_value is None or highest_cred.final_grade.numeric_value == 0:
+                self._aggregate_semester_grades(highest_cred, context.credentials)
+
+            if highest_cred.final_grade.numeric_value is None:
+                self.logger.warning(
+                    f"No numeric grade value for {highest_cred.source_file} after aggregation, skipping conversion"
+                )
+                context.set_stage_result(self.name, {
+                    "conversions_attempted": 1,
+                    "conversions_successful": 0,
+                    "table_version": table.version if table else None,
+                    "credential_converted": highest_cred.source_file,
+                    "reason": "No numeric grade value",
+                })
+                return context
+
             french_equivalent = self._convert_grade(
                 grade=highest_cred.final_grade,
                 country=highest_cred.country,
@@ -158,7 +162,7 @@ class GradeConverterStage(PipelineStage):
     def _find_highest_qualification_credential(
         self, credentials: list[CredentialData]
     ) -> CredentialData | None:
-        """Find the credential with the highest academic level.
+        """Find the credential with the highest academic level and best document type.
 
         Args:
             credentials: List of CredentialData objects
@@ -166,23 +170,93 @@ class GradeConverterStage(PipelineStage):
         Returns:
             The highest qualification credential or None
         """
-        degree_creds = [
+        # Define document type priority (higher is better)
+        type_priority = {
+            DocumentType.TRANSCRIPT: 10,
+            DocumentType.DEGREE_CERTIFICATE: 10,
+            DocumentType.MARK_SHEET: 8,
+            DocumentType.CONSOLIDATED_MARK_SHEET: 8,
+            DocumentType.PROVISIONAL_CERTIFICATE: 7,
+            DocumentType.DIPLOMA: 6,
+            DocumentType.SEMESTER_MARK_SHEET: 5,
+        }
+
+        # Filter to documents that can represent a qualification
+        qualification_creds = [
             c for c in credentials
-            if c.document_type in (
-                DocumentType.DEGREE_CERTIFICATE,
-                DocumentType.PROVISIONAL_CERTIFICATE,
-                DocumentType.DIPLOMA,
-                DocumentType.CONSOLIDATED_MARK_SHEET,
-            )
-            and c.academic_level is not None
+            if c.academic_level is not None and c.academic_level.rank > 0
         ]
 
-        if not degree_creds:
+        if not qualification_creds:
             return None
 
-        # Sort by academic level rank (highest first)
-        degree_creds.sort(key=lambda c: c.academic_level.rank, reverse=True)
-        return degree_creds[0]
+        # Sort primarily by academic level rank (highest first)
+        # Secondarily by document type priority (Transcript/Degree first)
+        qualification_creds.sort(
+            key=lambda c: (
+                c.academic_level.rank,
+                type_priority.get(c.document_type, 0),
+                c.confidence_score
+            ),
+            reverse=True
+        )
+        
+        return qualification_creds[0]
+
+    def _aggregate_semester_grades(self, target: CredentialData, all_credentials: list[CredentialData]) -> None:
+        """Aggregate grades from semester mark sheets if final grade is missing.
+        
+        Args:
+            target: The credential object to update with aggregated grade
+            all_credentials: All extracted credentials to search for semesters
+        """
+        if not target.academic_level:
+            return
+
+        # Find all mark sheets for the same academic level and qualification
+        semesters = [
+            c for c in all_credentials
+            if (c.document_type == DocumentType.SEMESTER_MARK_SHEET or c.document_type == DocumentType.MARK_SHEET)
+            and c.academic_level == target.academic_level
+            and c.final_grade is not None
+            and c.final_grade.numeric_value is not None
+        ]
+
+        if not semesters:
+            return
+
+        # Simple average of all found semester/yearly grades
+        total_value = sum(s.final_grade.numeric_value for s in semesters)
+        count = len(semesters)
+        
+        if count > 0:
+            avg_value = total_value / count
+            
+            # Update target's final grade info
+            from ...models.credential_data import GradeInfo
+            
+            # Use the grading system from the first semester sheet found
+            source_system = semesters[0].final_grade.grading_system
+            source_max = semesters[0].final_grade.max_possible
+            
+            if not target.final_grade:
+                target.final_grade = GradeInfo(
+                    grading_system=source_system,
+                    max_possible=source_max
+                )
+            
+            target.final_grade.numeric_value = round(avg_value, 2)
+            target.final_grade.original_value = f"{avg_value:.2f} (Average of {count} records)"
+            target.final_grade.grading_system = source_system
+            target.final_grade.max_possible = source_max
+            
+            self.logger.info(
+                "Aggregated semester grades",
+                file=target.source_file,
+                avg_value=avg_value,
+                count=count,
+                system=source_system.value
+            )
 
     def _convert_grade(
         self,

@@ -11,10 +11,10 @@ def get_visual_extraction_prompt() -> str:
 
 IMPORTANT: Pay special attention to the name fields to ensure high accuracy.
 
-1. first_name: Extract ALL given names exactly as they appear (do not truncate). Look for labels like "Given Names" or "Prénoms".
+1. first_name: Extract ALL given names exactly as they appear (do not truncate). Look for labels like "Given Names", "Prénoms", or "Post-Nom".
 2. last_name: Extract the complete surname/family name. Look for labels like "Surname" or "Nom".
 3. date_of_birth: In YYYY-MM-DD format.
-4. passport_number: Document number, usually in top right.
+4. passport_number: Document number, usually in the TOP RIGHT corner or top edge.
 5. issuing_country: 3-letter ICAO country code.
 6. nationality: 3-letter ICAO country code.
 7. passport_issue_date: In YYYY-MM-DD format (if visible).
@@ -23,7 +23,8 @@ IMPORTANT: Pay special attention to the name fields to ensure high accuracy.
 10. place_of_birth: City/country of birth (if visible).
 11. confidence: Your confidence score (0.0-1.0).
 
-Guidelines for Names:
+Guidelines for Data Accuracy:
+- AVOID HALLUCINATIONS: Do not confuse city names (like LUBUMBASHI, KINSHASA, etc.) with person names. Names are usually labeled "Nom", "Prénoms" or "Nom de famille".
 - Convert names to UPPERCASE.
 - Ignore titles (Mr, Ms, Dr, etc.).
 - NEVER include MRZ-specific prefixes (like "P<", "ETH", "P") in name fields.
@@ -41,28 +42,24 @@ def get_mrz_extraction_prompt() -> str:
     Returns:
         MRZ extraction prompt string
     """
-    return """Extract the Machine Readable Zone (MRZ) from this passport image.
+    return """Extract the Machine Readable Zone (MRZ) from this ID or passport image.
 
-The MRZ consists of 2 lines at the bottom of the passport, each exactly 44 characters long.
+The MRZ is the multi-line code at the bottom of the document. It usually follows one of these formats:
+- TD1 (Identity Card): 3 lines, each 30 characters long.
+- TD2 (ID/Visa): 2 lines, each 36 characters long.
+- TD3 (Passport): 2 lines, each 44 characters long.
 
-TD3 Format (Passport):
-Line 1: P<ISSUING_COUNTRY + SURNAME<<GIVEN_NAMES<<<<<<<<<<<<<<<<<<
-Line 2: PASSPORT_NUMBER + CHECK + NATIONALITY + DOB + CHECK + SEX + EXPIRY + CHECK + OPTIONAL + CHECK
-
-Return ONLY the two MRZ lines, exactly as they appear:
+Return ONLY the raw MRZ lines, exactly as they appear:
 - Line 1 on the first line
 - Line 2 on the second line
+- Line 3 on the third line (if applicable)
 - No additional text, formatting, or explanation
 
 Use < for filler characters.
 Use UPPERCASE letters only.
-Each line must be exactly 44 characters.
+Ensure each line has the correct character count (30, 36, or 44).
 
-If the MRZ is not visible or readable, respond with: "MRZ_NOT_FOUND"
-
-Example output:
-P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<
-L898902C36UTO7408122F1204159<<<<<<<<<<<<<<06"""
+If the MRZ is not visible or readable, respond with: "MRZ_NOT_FOUND" """
 
 
 def get_mrz_verification_prompt(mrz_line1: str, mrz_line2: str) -> str:

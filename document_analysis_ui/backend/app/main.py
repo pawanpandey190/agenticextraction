@@ -6,11 +6,14 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.database import engine, Base
 from app.config import settings
-from app.routers import sessions_router, documents_router, processing_router
+from app.routers import sessions_router, documents_router, processing_router, auth
 from app.routers.documents import batch_router
 from app.services.session_manager import session_manager
 
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,6 +60,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(sessions_router)
 app.include_router(documents_router)
 app.include_router(processing_router)

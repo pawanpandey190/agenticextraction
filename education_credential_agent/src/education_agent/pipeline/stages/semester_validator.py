@@ -53,8 +53,10 @@ class SemesterValidatorStage(PipelineStage):
         # Check for consolidated mark sheet first
         consolidated_mark_sheets = [
             c for c in context.credentials
-            if c.document_type == DocumentType.CONSOLIDATED_MARK_SHEET
-            and c.academic_level == AcademicLevel.BACHELOR
+            if (c.document_type == DocumentType.CONSOLIDATED_MARK_SHEET or 
+                (c.document_type in (DocumentType.TRANSCRIPT, DocumentType.SEMESTER_MARK_SHEET, DocumentType.MARK_SHEET) 
+                 and c.semester_number is None and c.final_grade is not None))
+            and c.academic_level in (AcademicLevel.BACHELOR, AcademicLevel.TRANSCRIPT, AcademicLevel.OTHER)
         ]
 
         if consolidated_mark_sheets:
@@ -89,7 +91,7 @@ class SemesterValidatorStage(PipelineStage):
         transcripts_with_grades = [
             c for c in context.credentials
             if c.document_type == DocumentType.TRANSCRIPT
-            and c.academic_level == AcademicLevel.BACHELOR
+            and c.academic_level in (AcademicLevel.BACHELOR, AcademicLevel.TRANSCRIPT, AcademicLevel.OTHER)
             and c.final_grade is not None
         ]
 
@@ -122,11 +124,12 @@ class SemesterValidatorStage(PipelineStage):
             return context
 
         # Find semester mark sheets for Bachelor's level only
+        # Include documents classified as generic MARK_SHEET or TRANSCRIPT if they have a semester number
         semester_mark_sheets = [
             c for c in context.credentials
-            if c.document_type == DocumentType.SEMESTER_MARK_SHEET
+            if c.document_type in (DocumentType.SEMESTER_MARK_SHEET, DocumentType.MARK_SHEET, DocumentType.TRANSCRIPT)
             and c.semester_number is not None
-            and c.academic_level == AcademicLevel.BACHELOR
+            and c.academic_level in (AcademicLevel.BACHELOR, AcademicLevel.TRANSCRIPT, AcademicLevel.OTHER)
         ]
 
         # Collect found semester numbers
@@ -250,8 +253,10 @@ def validate_bachelor_semesters(
     # Check for consolidated mark sheet first
     consolidated_mark_sheets = [
         c for c in credentials
-        if c.document_type == DocumentType.CONSOLIDATED_MARK_SHEET
-        and c.academic_level == AcademicLevel.BACHELOR
+        if (c.document_type == DocumentType.CONSOLIDATED_MARK_SHEET or 
+            (c.document_type in (DocumentType.TRANSCRIPT, DocumentType.SEMESTER_MARK_SHEET, DocumentType.MARK_SHEET) 
+             and c.semester_number is None and c.final_grade is not None))
+        and c.academic_level in (AcademicLevel.BACHELOR, AcademicLevel.TRANSCRIPT, AcademicLevel.OTHER)
     ]
 
     if consolidated_mark_sheets:
@@ -270,7 +275,7 @@ def validate_bachelor_semesters(
     transcripts_with_grades = [
         c for c in credentials
         if c.document_type == DocumentType.TRANSCRIPT
-        and c.academic_level == AcademicLevel.BACHELOR
+        and c.academic_level in (AcademicLevel.BACHELOR, AcademicLevel.TRANSCRIPT, AcademicLevel.OTHER)
         and c.final_grade is not None
     ]
 
@@ -285,11 +290,12 @@ def validate_bachelor_semesters(
         )
 
     # Find semester mark sheets for Bachelor's level only
+    # Include documents classified as generic MARK_SHEET or TRANSCRIPT if they have a semester number
     semester_mark_sheets = [
         c for c in credentials
-        if c.document_type == DocumentType.SEMESTER_MARK_SHEET
+        if c.document_type in (DocumentType.SEMESTER_MARK_SHEET, DocumentType.MARK_SHEET, DocumentType.TRANSCRIPT)
         and c.semester_number is not None
-        and c.academic_level == AcademicLevel.BACHELOR
+        and c.academic_level in (AcademicLevel.BACHELOR, AcademicLevel.TRANSCRIPT, AcademicLevel.OTHER)
     ]
 
     found_semesters = [c.semester_number for c in semester_mark_sheets]

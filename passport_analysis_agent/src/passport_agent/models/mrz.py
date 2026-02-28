@@ -57,7 +57,9 @@ class MRZChecksumResult(BaseModel):
 class MRZData(BaseModel):
     """Parsed MRZ data from TD3 format passport.
 
-    TD3 format has 2 lines of 44 characters each (88 total).
+    TD3 format has 2 lines of 44 characters each.
+    TD2 format has 2 lines of 36 characters each.
+    TD1 format has 3 lines of 30 characters each.
     """
 
     document_type: str = Field(description="Document type (usually 'P' for passport)")
@@ -74,8 +76,9 @@ class MRZData(BaseModel):
     personal_number: str | None = Field(
         default=None, description="Personal/national ID number (optional)"
     )
-    raw_line1: str = Field(description="Raw MRZ line 1 (44 characters)")
-    raw_line2: str = Field(description="Raw MRZ line 2 (44 characters)")
+    raw_line1: str = Field(description="Raw MRZ line 1")
+    raw_line2: str = Field(description="Raw MRZ line 2")
+    raw_line3: str | None = Field(default=None, description="Raw MRZ line 3 (for TD1)")
     checksum_results: MRZChecksumResult = Field(
         default_factory=MRZChecksumResult, description="Checksum validation results"
     )
@@ -128,15 +131,14 @@ class MRZData(BaseModel):
 class MRZExtractionResponse(BaseModel):
     """Response model for MRZ extraction from image."""
 
-    line1: str | None = Field(default=None, description="First MRZ line (44 chars)")
-    line2: str | None = Field(default=None, description="Second MRZ line (44 chars)")
+    line1: str | None = Field(default=None, description="First MRZ line")
+    line2: str | None = Field(default=None, description="Second MRZ line")
+    line3: str | None = Field(default=None, description="Third MRZ line")
     confidence: float = Field(default=0.0, description="Extraction confidence")
 
     model_config = {"extra": "ignore"}
 
     @property
     def has_valid_lines(self) -> bool:
-        """Check if both lines are present and valid length."""
-        if not self.line1 or not self.line2:
-            return False
-        return len(self.line1) == 44 and len(self.line2) == 44
+        """Check if lines are present."""
+        return bool(self.line1 and self.line2)

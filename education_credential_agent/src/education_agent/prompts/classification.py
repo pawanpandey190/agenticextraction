@@ -34,9 +34,9 @@ Determine the academic level:
 - Official stamps, signatures, registrar mentions
 
 ## Important Guidance for Transcripts vs Consolidated Mark Sheets:
-- If a TRANSCRIPT contains a cumulative GPA/CGPA or final aggregate grade,
-  and lists courses/grades for multiple years/semesters, classify as CONSOLIDATED_MARK_SHEET
-- Individual SEMESTER_MARK_SHEET documents only show grades for ONE semester
+- If a document contains grades for multiple years/semesters (e.g., an 8-page transcript), 
+  classify as CONSOLIDATED_MARK_SHEET even if the word "consolidated" is not present
+- Individual SEMESTER_MARK_SHEET documents ONLY show grades for ONE single semester
 - Transcripts from international universities (non-Indian) are typically consolidated records
   that contain the complete academic history and should be classified as CONSOLIDATED_MARK_SHEET
 - Only classify as TRANSCRIPT if it appears to be a partial record or does not contain
@@ -87,9 +87,9 @@ Determine the academic level:
 7. OTHER - Cannot determine academic level
 
 ## Important Guidance for Transcripts vs Consolidated Mark Sheets:
-- If a TRANSCRIPT contains a cumulative GPA/CGPA or final aggregate grade,
-  and lists courses/grades for multiple years/semesters, classify as CONSOLIDATED_MARK_SHEET
-- Individual SEMESTER_MARK_SHEET documents only show grades for ONE semester
+- If a document contains grades for multiple years/semesters (e.g., an 8-page transcript), 
+  classify as CONSOLIDATED_MARK_SHEET even if the word "consolidated" is not present
+- Individual SEMESTER_MARK_SHEET documents ONLY show grades for ONE single semester
 - Transcripts from international universities (non-Indian) are typically consolidated records
   that contain the complete academic history and should be classified as CONSOLIDATED_MARK_SHEET
 - Only classify as TRANSCRIPT if it appears to be a partial record or does not contain

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from ...config.constants import AcademicLevel, DocumentType, SemesterValidationStatus
+from ...config.constants import AcademicLevel, DocumentType, SemesterValidationStatus, COUNTRY_CODES, QualificationStatus
 from ...config.settings import Settings
 from ...models.evaluation import (
     AnalysisResult,
@@ -40,7 +40,7 @@ class EvaluatorStage(PipelineStage):
             doc = DocumentAnalyzed(
                 file_name=Path(credential.source_file).name,
                 document_type=credential.document_type,
-                country=credential.country,
+                country=COUNTRY_CODES.get(credential.country, credential.country),
                 institution=credential.institution.name if credential.institution else None,
                 qualification=credential.qualification_name,
                 grading_system=credential.final_grade.grading_system if credential.final_grade else None,
@@ -112,13 +112,30 @@ class EvaluatorStage(PipelineStage):
         Returns:
             HighestQualification or None
         """
-        # Filter to degree/certificate documents (not transcripts or mark sheets)
+        def get_doc_priority(doc_type: DocumentType) -> int:
+            priorities = {
+                DocumentType.CONSOLIDATED_MARK_SHEET: 5,
+                DocumentType.TRANSCRIPT: 4,
+                DocumentType.SEMESTER_MARK_SHEET: 3,
+                DocumentType.MARK_SHEET: 2,
+                DocumentType.DEGREE_CERTIFICATE: 1,
+                DocumentType.PROVISIONAL_CERTIFICATE: 1,
+                DocumentType.DIPLOMA: 1,
+                DocumentType.UNKNOWN: 0,
+            }
+            return priorities.get(doc_type, 0)
+
+        # Filter to relevant credentials
         degree_credentials = [
             c for c in credentials
             if c.document_type in (
                 DocumentType.DEGREE_CERTIFICATE,
                 DocumentType.DIPLOMA,
                 DocumentType.PROVISIONAL_CERTIFICATE,
+                DocumentType.TRANSCRIPT,
+                DocumentType.CONSOLIDATED_MARK_SHEET,
+                DocumentType.MARK_SHEET,
+                DocumentType.SEMESTER_MARK_SHEET,
             )
             or c.academic_level.rank > 0  # Has a ranked academic level
         ]
@@ -130,8 +147,14 @@ class EvaluatorStage(PipelineStage):
         if not degree_credentials:
             return None
 
-        # Sort by academic level rank (descending)
-        degree_credentials.sort(key=lambda c: c.academic_level.rank, reverse=True)
+        # Sort by academic level rank and then document priority (descending)
+        degree_credentials.sort(
+            key=lambda c: (
+                c.academic_level.rank,
+                get_doc_priority(c.document_type)
+            ), 
+            reverse=True
+        )
 
         highest = degree_credentials[0]
 
@@ -145,8 +168,9 @@ class EvaluatorStage(PipelineStage):
             level=highest.academic_level,
             qualification_name=highest.qualification_name,
             institution=highest.institution.name if highest.institution else None,
-            country=highest.country,
+            country=COUNTRY_CODES.get(highest.country, highest.country),
             status=status,
+            result_status=highest.result_status,
         )
 
     def _build_evaluation_result(self, context: PipelineContext) -> EvaluationResult:
@@ -201,10 +225,23 @@ class EvaluatorStage(PipelineStage):
         Returns:
             GradeConversionResult
         """
+        def get_doc_priority(doc_type: DocumentType) -> int:
+            priorities = {
+                DocumentType.CONSOLIDATED_MARK_SHEET: 5,
+                DocumentType.TRANSCRIPT: 4,
+                DocumentType.SEMESTER_MARK_SHEET: 3,
+                DocumentType.MARK_SHEET: 2,
+                DocumentType.DEGREE_CERTIFICATE: 1,
+                DocumentType.PROVISIONAL_CERTIFICATE: 1,
+                DocumentType.DIPLOMA: 1,
+                DocumentType.UNKNOWN: 0,
+            }
+            return priorities.get(doc_type, 0)
+
         # Find the highest credential with a converted grade
         for credential in sorted(
             context.credentials,
-            key=lambda c: c.academic_level.rank,
+            key=lambda c: (c.academic_level.rank, get_doc_priority(c.document_type)),
             reverse=True,
         ):
             if not credential.final_grade:
@@ -213,8 +250,7 @@ class EvaluatorStage(PipelineStage):
             french_equivalent = credential.final_grade.french_scale_equivalent
             conversion_possible = french_equivalent is not None
 
-            # For incomplete Bachelor's, don't report final grade (for Indian institutions only)
-            # International institutions typically don't have semester-by-semester mark sheets
+            # For incomplete Bachelor's, add a note but allow conversion
             semester_result = context.get_stage_result("semester_validator") or {}
             is_incomplete_bachelor = (
                 credential.academic_level == AcademicLevel.BACHELOR
@@ -222,29 +258,11 @@ class EvaluatorStage(PipelineStage):
                 and not semester_result.get("is_complete", True)
             )
 
-            # Only block grade conversion for Indian institutions
-            # Non-Indian countries don't typically have semester-by-semester validation
-            is_indian_institution = credential.country == "IN"
-
-            if is_incomplete_bachelor and is_indian_institution:
-                return GradeConversionResult(
-                    conversion_source="GRADE CONVERSION TABLES BY REGION",
-                    original_grade=credential.final_grade.original_value,
-                    original_scale=credential.final_grade.grading_system,
-                    french_equivalent_0_20=None,
-                    conversion_notes="Grade not computed - incomplete semester records",
-                    conversion_possible=False,
-                )
-
-            # For non-Indian institutions with incomplete semester records,
-            # still compute the grade but add a note about the validation status
-            conversion_notes = credential.final_grade.conversion_notes
-            if is_incomplete_bachelor and not is_indian_institution:
-                notes = credential.final_grade.conversion_notes or ""
-                if notes:
-                    notes += "; "
-                notes += "Note: Semester validation not applicable for international institutions"
-                conversion_notes = notes
+            conversion_notes = credential.final_grade.conversion_notes or ""
+            if is_incomplete_bachelor:
+                if conversion_notes:
+                    conversion_notes += "; "
+                conversion_notes += "Incomplete records - result based on available data"
 
             return GradeConversionResult(
                 conversion_source="GRADE CONVERSION TABLES BY REGION",

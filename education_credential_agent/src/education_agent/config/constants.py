@@ -55,6 +55,14 @@ class GradingSystem(str, Enum):
     OTHER = "OTHER"
 
 
+class QualificationStatus(str, Enum):
+    """Overall result status of a qualification."""
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNKNOWN = "UNKNOWN"
+
+
 class SemesterValidationStatus(str, Enum):
     """Status of semester validation for Bachelor's degrees."""
 
@@ -108,6 +116,8 @@ BACHELOR_SEMESTER_MAP = {
     "B.CA": 6,
     "BACHELOR OF COMPUTER APPLICATIONS": 6,
     "BCA": 6,
+    "B.PHARM": 8,
+    "BACHELOR OF PHARMACY": 8,
     # Default for unknown bachelor programs
     "DEFAULT": 8,
 }
@@ -160,4 +170,24 @@ COUNTRY_CODES = {
     "PT": "Portugal",
     "AT": "Austria",
     "NZ": "New Zealand",
+    "DZ": "Algeria",
+    "MA": "Morocco",
+    "TN": "Tunisia",
+    "SN": "Senegal",
+    "CI": "Ivory Coast",
+    "CM": "Cameroon",
+    "ML": "Mali",
+    "BF": "Burkina Faso",
+    "NE": "Niger",
+    "TG": "Togo",
+    "BJ": "Benin",
+    "GN": "Guinea",
+    "CD": "Democratic Republic of the Congo",
+    "CG": "Republic of the Congo",
+    "GA": "Gabon",
+    "BI": "Burundi",
+    "RW": "Rwanda",
+    "MG": "Madagascar",
+    "MU": "Mauritius",
+    "SC": "Seychelles",
 }

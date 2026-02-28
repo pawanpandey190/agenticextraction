@@ -1,11 +1,15 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { UploadPage } from './pages/UploadPage';
 import { ProcessingPage } from './pages/ProcessingPage';
 import { ReportPage } from './pages/ReportPage';
 import { BatchUploadPage } from './pages/BatchUploadPage';
 import { BatchResultsPage } from './pages/BatchResultsPage';
 import { HistoryPage } from './pages/HistoryPage';
-import { Link } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './hooks/useAuth';
+import { LogOut } from 'lucide-react';
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,13 +23,18 @@ function Layout({ children }: { children: React.ReactNode }) {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 border-b border-slate-200 backdrop-blur-md shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-3 group transition-all">
-              <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm group-hover:scale-105 transition-transform">
-                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+            <Link to="/" className="flex items-center space-x-4 group transition-all">
+              <div className="h-12 w-auto min-w-[120px] transition-all duration-500 ease-out group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] filter">
+                <img src="/logo.png" alt="Logo" className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-500" />
               </div>
-              <h1 className="text-xl font-bold text-slate-900">
-                Document Analysis
-              </h1>
+              <div className="flex flex-col">
+                <h1 className="text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-brand-primary transition-colors">
+                  Document Analysis
+                </h1>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] -mt-1">
+                  Professional Suite
+                </span>
+              </div>
             </Link>
 
             <nav className="flex items-center space-x-8">
@@ -41,6 +50,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 History
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-primary transition-all group-hover:w-full"></span>
               </Link>
+              <AuthNav />
             </nav>
           </div>
         </div>
@@ -72,19 +82,47 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AuthNav() {
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <button
+      onClick={() => { logout(); navigate('/login'); }}
+      className="flex items-center gap-2 text-sm font-bold text-red-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-full hover:bg-red-50"
+    >
+      <LogOut size={16} />
+      <span>Sign Out</span>
+    </button>
+  );
+}
+
 export function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<UploadPage />} />
-          <Route path="/batch-upload" element={<BatchUploadPage />} />
-          <Route path="/batch/:batchId" element={<BatchResultsPage />} />
-          <Route path="/processing/:sessionId" element={<ProcessingPage />} />
-          <Route path="/report/:sessionId" element={<ReportPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Auth routes without layout */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+
+        {/* Protected routes with layout */}
+        <Route path="/*" element={
+          <ProtectedRoute>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<UploadPage />} />
+                <Route path="/batch-upload" element={<BatchUploadPage />} />
+                <Route path="/batch/:batchId" element={<BatchResultsPage />} />
+                <Route path="/processing/:sessionId" element={<ProcessingPage />} />
+                <Route path="/report/:sessionId" element={<ReportPage />} />
+                <Route path="/history" element={<HistoryPage />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } />
+      </Routes>
     </BrowserRouter>
   );
 }

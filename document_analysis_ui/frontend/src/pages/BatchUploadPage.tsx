@@ -30,19 +30,7 @@ export function BatchUploadPage() {
             // Step 1: Upload batch folders
             const response = await api.uploadBatchFolders(selectedFiles, financialThreshold, bankStatementPeriod);
 
-            // Step 2: Automatically start processing for each student
-            const processingPromises = response.sessions.map(async (session) => {
-                try {
-                    await api.startProcessing(session.session_id);
-                } catch (err) {
-                    console.error(`Failed to start processing for ${session.student_name}:`, err);
-                }
-            });
-
-            // Wait for all processing to start
-            await Promise.all(processingPromises);
-
-            // Navigate to batch results page
+            // Step 2: Navigate to batch results page (Processing is started automatically by backend)
             navigate(`/batch/${response.batch_id}`);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Upload failed');

@@ -46,6 +46,7 @@ class ImagePreprocessorStage(PipelineStage):
                 image,
                 deskew=True,
                 enhance=True,
+                enhancement_level=context.enhancement_level
             )
 
             # Encode back to base64

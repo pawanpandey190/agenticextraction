@@ -145,7 +145,7 @@ class SessionManager:
         financial_threshold: float = 15000.0,
         bank_statement_period: int = 3,
     ) -> list[Session]:
-        """Create multiple sessions for batch upload.
+        """Create multiple sessions for batch upload with name resolution.
 
         Args:
             student_folders: Dictionary mapping student names to their file lists.
@@ -157,20 +157,27 @@ class SessionManager:
             List of created Session instances.
         """
         sessions = []
+        # First pass: collect all folder names to handle duplicates within the batch
         for student_name, files in student_folders.items():
+            # Resolve duplicate name against existing history AND sessions being created
+            unique_name = self.resolve_duplicate_name(student_name, "NEW_SESSION")
+            
             session = self.create_session(
                 financial_threshold=financial_threshold,
                 bank_statement_period=bank_statement_period,
                 batch_id=batch_id,
-                student_name=student_name,
+                student_name=unique_name,
                 student_folder=student_name,
             )
+            # Add to cache immediately so next iterations see it
+            self._sessions[session.id] = session
+            
             sessions.append(session)
             logger.info(
                 "batch_session_created",
                 session_id=session.id,
                 batch_id=batch_id,
-                student_name=student_name,
+                student_name=unique_name,
                 file_count=len(files),
             )
         return sessions
@@ -253,13 +260,28 @@ class SessionManager:
         return False
 
     def list_sessions(self) -> list[Session]:
-        """List all sessions, refreshing from disk."""
+        """List all sessions, refreshing from disk and removing stale entries."""
         # Force re-scan of directory to find new sessions or external updates
+        found_ids = set()
         if self._base_path.exists():
             for session_dir in self._base_path.iterdir():
                 if session_dir.is_dir():
+                    session_id = session_dir.name
                     # This will trigger the mtime check in get_session
-                    self.get_session(session_dir.name)
+                    self.get_session(session_id)
+                    found_ids.add(session_id)
+        
+        # Remove stale entries from memory that are no longer on disk
+        stale_ids = set(self._sessions.keys()) - found_ids
+        for sid in stale_ids:
+            self._sessions.pop(sid, None)
+            self._last_mtimes.pop(sid, None)
+            # Remove from batch mapping if exists
+            batch_id = None
+            for bid, sids in self._batch_sessions.items():
+                if sid in sids:
+                    sids.remove(sid)
+                    break
             
         return sorted(self._sessions.values(), key=lambda s: s.created_at, reverse=True)
 

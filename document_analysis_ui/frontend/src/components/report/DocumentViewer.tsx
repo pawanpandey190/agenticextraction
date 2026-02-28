@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, Download, X } from 'lucide-react';
 import type { DocumentMetadata } from '../../services/types';
+import { api } from '../../services/api';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -18,7 +19,6 @@ interface DocumentViewerProps {
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     sessionId,
     documents,
-    baseUrl = 'http://localhost:8000',
 }) => {
     const [selectedDoc, setSelectedDoc] = useState<string>(documents[0]?.filename || '');
     const [numPages, setNumPages] = useState<number>(0);
@@ -32,7 +32,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const isImage = selectedDocument?.type?.startsWith('image/');
 
     const documentUrl = selectedDoc
-        ? `${baseUrl}/api/sessions/${sessionId}/documents/${encodeURIComponent(selectedDoc)}/view`
+        ? api.getDocumentViewUrl(sessionId, selectedDoc)
         : '';
 
     const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -135,6 +135,30 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                         style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
                         onError={() => setError('Failed to load image')}
                     />
+                </div>
+            )}
+
+            {error && (
+                <div className="flex flex-col items-center justify-center p-8 h-full">
+                    <div className="text-red-500 mb-4">
+                        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <p className="font-bold text-slate-800 text-lg mb-2">Preview Unavailable</p>
+                    <p className="text-slate-500 mb-6 text-sm text-center max-w-sm">
+                        {error}
+                        <br />
+                        <span className="text-xs opacity-70 mt-2 block">If this persists, try clearing your browser cache (Cmd+Shift+R / Ctrl+F5).</span>
+                    </p>
+                    <a
+                        href={documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-6 py-3 bg-brand-primary text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5"
+                    >
+                        Download Source File
+                    </a>
                 </div>
             )}
 

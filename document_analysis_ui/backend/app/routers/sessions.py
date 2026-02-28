@@ -1,6 +1,8 @@
 """Session management endpoints."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from app.services.auth_service import get_current_user
+from app.models.user import User
 
 from app.models.api_models import (
     CreateSessionRequest,
@@ -16,7 +18,10 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
 @router.post("", response_model=CreateSessionResponse, status_code=status.HTTP_201_CREATED)
-async def create_session(request: CreateSessionRequest = CreateSessionRequest()):
+async def create_session(
+    request: CreateSessionRequest = CreateSessionRequest(),
+    current_user: User = Depends(get_current_user)
+):
     """Create a new processing session."""
     session = session_manager.create_session(
         financial_threshold=request.financial_threshold,
@@ -30,7 +35,7 @@ async def create_session(request: CreateSessionRequest = CreateSessionRequest())
 
 
 @router.get("", response_model=list[SessionResponse])
-async def list_sessions():
+async def list_sessions(current_user: User = Depends(get_current_user)):
     """List all sessions."""
     sessions = session_manager.list_sessions()
     return [
@@ -58,7 +63,7 @@ async def list_sessions():
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: str):
+async def get_session(session_id: str, current_user: User = Depends(get_current_user)):
     """Get a session by ID."""
     session = session_manager.get_session(session_id)
     if not session:
@@ -88,7 +93,7 @@ async def get_session(session_id: str):
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_session(session_id: str):
+async def delete_session(session_id: str, current_user: User = Depends(get_current_user)):
     """Delete a session and all its files."""
     if not session_manager.delete_session(session_id):
         raise HTTPException(

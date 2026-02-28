@@ -98,6 +98,7 @@ class ResultNormalizerStage(MasterPipelineStage):
                 if isinstance(mrz_data, dict):
                     raw_line1 = mrz_data.get("raw_line1")
                     raw_line2 = mrz_data.get("raw_line2")
+                    raw_line3 = mrz_data.get("raw_line3")
                     doc_type = mrz_data.get("document_type")
                     checksums = mrz_data.get("checksum_results")
                     checksum_valid = None
@@ -106,16 +107,18 @@ class ResultNormalizerStage(MasterPipelineStage):
                 else:
                     raw_line1 = getattr(mrz_data, "raw_line1", None)
                     raw_line2 = getattr(mrz_data, "raw_line2", None)
+                    raw_line3 = getattr(mrz_data, "raw_line3", None)
                     doc_type = getattr(mrz_data, "document_type", None)
                     checksum_results = getattr(mrz_data, "checksum_results", None)
                     checksum_valid = None
                     if checksum_results:
                         checksum_valid = getattr(checksum_results, "composite", None)
-
+ 
                 mrz_details = MRZDetails(
                     document_type=doc_type,
                     raw_line1=raw_line1,
                     raw_line2=raw_line2,
+                    raw_line3=raw_line3,
                     checksum_valid=checksum_valid,
                 )
 
@@ -145,6 +148,10 @@ class ResultNormalizerStage(MasterPipelineStage):
                 if mrz_data:
                     first_name, last_name = self._reconcile_names(
                         first_name, last_name, mrz_data
+                    )
+                    # Reconcile passport number
+                    p_num = self._reconcile_passport_number(
+                        p_num, mrz_data
                     )
 
                 return PassportDetails(
@@ -279,6 +286,53 @@ class ResultNormalizerStage(MasterPipelineStage):
         except Exception as e:
             logger.warning("name_reconciliation_error", error=str(e))
             return visual_first, visual_last
+
+    def _reconcile_passport_number(
+        self,
+        visual_pnum: str | None,
+        mrz_data: object,
+    ) -> str | None:
+        """Reconcile passport number between VIZ and MRZ data.
+        
+        Prioritizes MRZ if visual is obviously wrong or MRZ has valid checksum.
+        """
+        try:
+            if isinstance(mrz_data, dict):
+                mrz_pnum = mrz_data.get("passport_number")
+                checksums = mrz_data.get("checksum_results", {})
+                pnum_valid = checksums.get("passport_number") if isinstance(checksums, dict) else False
+            else:
+                mrz_pnum = getattr(mrz_data, "passport_number", None)
+                checksum_results = getattr(mrz_data, "checksum_results", None)
+                pnum_valid = getattr(checksum_results, "passport_number", False) if checksum_results else False
+
+            if not mrz_pnum:
+                return visual_pnum
+            
+            if not visual_pnum:
+                return mrz_pnum
+
+            # Normalize
+            v_p = "".join(filter(str.isalnum, visual_pnum.upper()))
+            m_p = "".join(filter(str.isalnum, mrz_pnum.upper()))
+
+            if v_p == m_p:
+                return visual_pnum
+
+            # If MRZ checksum is valid, or visual is clearly wrong (e.g. contains words or is too long/short)
+            is_visual_suspicious = len(v_p) > 15 or len(v_p) < 6 or any(c.islower() for c in visual_pnum)
+            
+            if pnum_valid or is_visual_suspicious:
+                logger.info("passport_number_disagreement_preferring_mrz", 
+                             visual=visual_pnum, mrz=mrz_pnum,
+                             mrz_valid=pnum_valid)
+                return mrz_pnum
+
+            return visual_pnum
+
+        except Exception as e:
+            logger.warning("passport_number_reconciliation_error", error=str(e))
+            return visual_pnum
 
     def _normalize_financial(
         self,
@@ -417,14 +471,30 @@ class ResultNormalizerStage(MasterPipelineStage):
                     status = getattr(sem_val, "status", None)
                     if status:
                         status_str = status.value if hasattr(status, "value") else str(status)
-                        if status_str == "VALID":
+                        if status_str in ("COMPLETE", "COMPLETE_VIA_CONSOLIDATED", "VALID"):
                             validation_status = ValidationStatus.PASS
-                        elif status_str == "INVALID":
+                        elif status_str in ("INCOMPLETE", "INVALID"):
+                            validation_status = ValidationStatus.INCONCLUSIVE
+                        elif status_str == "FAIL":
                             validation_status = ValidationStatus.FAIL
 
             # Build detailed education remarks
             remarks_parts = []
             
+            # Determine if the qualification was failed
+            result_status = "UNKNOWN"
+            if highest_qual:
+                result_status = str(getattr(highest_qual, "result_status", "UNKNOWN"))
+                if hasattr(highest_qual, "result_status") and hasattr(highest_qual.result_status, "value"):
+                    result_status = highest_qual.result_status.value
+
+            # If the grade is below 8 in French scale, it's also a fail (French standard)
+            if french_grade is not None and french_grade < 8.0:
+                result_status = "FAIL"
+
+            if result_status == "FAIL":
+                validation_status = ValidationStatus.FAIL
+
             # Detection of extraction failure
             if getattr(raw_result, "extraction_status", "success") != "success":
                 remarks_parts.append(f"TECHNICAL FAILURE: {getattr(raw_result, 'failure_reason', 'Unknown error')}")
@@ -449,7 +519,7 @@ class ResultNormalizerStage(MasterPipelineStage):
             if validation_status == ValidationStatus.PASS:
                 remarks_parts.append("Validation: PASSED. All required semesters were found and verified.")
             elif validation_status == ValidationStatus.FAIL:
-                remarks_parts.append("Validation: FAILED.")
+                remarks_parts.append("Validation: FAILED/REFUSED. The qualification was not successfully obtained or did not meet the passing criteria.")
             else:
                 remarks_parts.append("Validation: INCONCLUSIVE. The documents provided do not allow for a full semester-by-semester verification.")
             
@@ -490,7 +560,11 @@ class ResultNormalizerStage(MasterPipelineStage):
                 french_equivalent_grade_0_20=french_grade,
                 validation_status=validation_status,
                 remarks=remarks,
-                french_equivalence="Équivalence Validée" if validation_status == ValidationStatus.PASS else "Équivalence Non Validée" if validation_status == ValidationStatus.FAIL else "Équivalence Partielle",
+                french_equivalence=(
+                    "Équivalence Validée" if validation_status == ValidationStatus.PASS 
+                    else "Équivalence Non Validée (Échec au Diplôme)" if validation_status == ValidationStatus.FAIL 
+                    else "Équivalence Partielle"
+                ),
                 extraction_status="success",
             )
 

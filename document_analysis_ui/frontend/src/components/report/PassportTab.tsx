@@ -83,8 +83,9 @@ export function PassportTab({ data }: PassportTabProps) {
             <Info className="w-3.5 h-3.5" /> Machine Readable Zone (MRZ)
           </h3>
           <GlassCard className="p-6 font-mono text-xs leading-loose tracking-wider break-all bg-slate-900 text-brand-primary shadow-xl border-slate-900 rounded-2xl">
-            <div className="opacity-90 mb-2 whitespace-pre-wrap">{data.mrz_line1 || 'LINE_1_STUB_DATA'}</div>
-            <div className="opacity-90 whitespace-pre-wrap">{data.mrz_line2 || 'LINE_2_STUB_DATA'}</div>
+            <div className="opacity-90 whitespace-pre-wrap">{data.mrz_line1 || 'MRZ lines not available'}</div>
+            {data.mrz_line2 && <div className="opacity-90 whitespace-pre-wrap">{data.mrz_line2}</div>}
+            {data.mrz_line3 && <div className="opacity-90 whitespace-pre-wrap">{data.mrz_line3}</div>}
           </GlassCard>
         </div>
 
