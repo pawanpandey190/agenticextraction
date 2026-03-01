@@ -1,8 +1,15 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -15,12 +22,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    logging: *default-logging
     env_file:
       - .env
       - .env.docker
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./passport_analysis_agent:/app/passport_analysis_agent
+      - ./financial_document_agent:/app/financial_document_agent
+      - ./education_credential_agent:/app/education_credential_agent
+      - ./master_orchestrator_agent:/app/master_orchestrator_agent
+      - ./document_analysis_ui/backend:/app/document_analysis_ui/backend
     depends_on:
       redis:
         condition: service_healthy
@@ -35,6 +48,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    logging: *default-logging
     command: >
       sh -c "celery -A app.celery_app worker --loglevel=info --concurrency=2 2>&1 | tee /app/logs/celery-worker.log"
     env_file:
@@ -43,6 +57,11 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./passport_analysis_agent:/app/passport_analysis_agent
+      - ./financial_document_agent:/app/financial_document_agent
+      - ./education_credential_agent:/app/education_credential_agent
+      - ./master_orchestrator_agent:/app/master_orchestrator_agent
+      - ./document_analysis_ui/backend:/app/document_analysis_ui/backend
     depends_on:
       redis:
         condition: service_healthy
@@ -53,6 +72,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+    logging: *default-logging
     ports:
       - "80:80"
     volumes:

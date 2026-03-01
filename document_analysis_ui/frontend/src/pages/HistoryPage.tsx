@@ -179,7 +179,7 @@ export function HistoryPage() {
                                         <div>
                                             <div className="flex items-center gap-3">
                                                 <h3 className="text-base font-bold text-slate-800 tracking-tight">
-                                                    {session.student_name || 'Individual Analysis'}
+                                                    {session.student_name || session.student_folder || 'Analysis Result'}
                                                 </h3>
                                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                     {getStatusIcon(session.status)}

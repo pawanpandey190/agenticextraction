@@ -41,6 +41,7 @@ class SessionResponse(BaseModel):
     # Batch support
     batch_id: str | None = None
     student_name: str | None = None
+    student_folder: str | None = None
     # Progress tracking
     current_document: str | None = None
     processed_documents: int = 0
@@ -86,6 +87,7 @@ class BatchSessionInfo(BaseModel):
     
     session_id: str
     student_name: str
+    student_folder: str | None = None
     status: SessionStatus
     total_files: int = 0
     result_available: bool = False

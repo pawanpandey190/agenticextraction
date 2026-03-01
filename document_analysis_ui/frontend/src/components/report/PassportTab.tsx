@@ -12,6 +12,20 @@ interface FieldProps {
   icon: React.ReactNode;
 }
 
+function formatDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch {
+    return dateStr;
+  }
+}
+
 function Field({ label, value, icon }: FieldProps) {
   return (
     <div className="flex items-center justify-between py-4 group hover:bg-slate-50 transition-colors px-4 rounded-xl border-b border-slate-50 last:border-0">
@@ -21,7 +35,7 @@ function Field({ label, value, icon }: FieldProps) {
         </div>
         <dt className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{label}</dt>
       </div>
-      <dd className="text-sm font-black text-slate-900">
+      <dd className="text-sm font-black text-slate-900 text-right">
         {value ?? <span className="text-slate-300 italic font-medium">Not available</span>}
       </dd>
     </div>
@@ -59,7 +73,7 @@ export function PassportTab({ data }: PassportTabProps) {
           <GlassCard className="p-2 space-y-1">
             <Field label="First Name" value={data.first_name} icon={<User className="w-4 h-4" />} />
             <Field label="Last Name" value={data.last_name} icon={<User className="w-4 h-4" />} />
-            <Field label="Date of Birth" value={data.date_of_birth} icon={<Calendar className="w-4 h-4" />} />
+            <Field label="Date of Birth" value={formatDate(data.date_of_birth)} icon={<Calendar className="w-4 h-4" />} />
           </GlassCard>
         </div>
 
@@ -70,8 +84,8 @@ export function PassportTab({ data }: PassportTabProps) {
           <GlassCard className="p-0 border-slate-200 shadow-sm bg-white overflow-hidden">
             <Field label="Passport ID" value={data.passport_number} icon={<Info className="w-4 h-4" />} />
             <Field label="Issuing State" value={data.issuing_country} icon={<Globe className="w-4 h-4" />} />
-            <Field label="Issue Date" value={data.issue_date} icon={<Calendar className="w-4 h-4" />} />
-            <Field label="Expiry Date" value={data.expiry_date} icon={<Calendar className="w-4 h-4" />} />
+            <Field label="Issue Date" value={formatDate(data.issue_date)} icon={<Calendar className="w-4 h-4" />} />
+            <Field label="Expiry Date" value={formatDate(data.expiry_date)} icon={<Calendar className="w-4 h-4" />} />
           </GlassCard>
         </div>
 

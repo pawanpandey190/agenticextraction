@@ -340,26 +340,41 @@ class OrchestratorRunner:
                     
                     # Update student name if missing
                     if not session.student_name:
-                        # Try to find name in passport, then education, then financial
+                        # Try to find name in passport_details (even if is_passport is False)
                         passport = analysis_data.get("passport_details", {})
-                        first_name = passport.get("first_name")
-                        last_name = passport.get("last_name")
+                        first_name = (passport.get("first_name") or "").strip()
+                        last_name = (passport.get("last_name") or "").strip()
                         
+                        logger.info("checking_passport_name", session_id=session_id, first=first_name, last=last_name)
+
                         if first_name and last_name:
                             name = f"{first_name} {last_name}"
+                        elif first_name:
+                            name = first_name
+                        elif last_name:
+                            name = last_name
                         else:
-                            name = first_name or last_name
+                            name = None
                             
+                        # If still missing, try education summary
+                        if not name:
+                            edu = analysis_data.get("education_summary", {})
+                            name = (edu.get("student_name") or "").strip()
+                            if name:
+                                logger.info("found_name_in_education", session_id=session_id, name=name)
+                        
+                        # If still missing, check financial summary (though unlikely)
+                        if not name:
+                            fin = analysis_data.get("financial_summary", {})
+                            name = (fin.get("account_holder_name") or "").strip()
+                            if name:
+                                logger.info("found_name_in_financial", session_id=session_id, name=name)
+
                         if name:
                             session.student_name = session_manager.resolve_duplicate_name(name, session_id)
-                        else:
-                            # Try education summary
-                            edu = analysis_data.get("education_summary", {})
-                            if edu.get("student_name"):
-                                session.student_name = edu["student_name"]
-                        
-                        if session.student_name:
                             logger.info("extracted_student_name", session_id=session_id, name=session.student_name)
+                        else:
+                            logger.warning("could_not_extract_any_student_name", session_id=session_id)
 
                     passport = analysis_data.get("passport_details", {})
                     accuracy = passport.get("accuracy_score", 0)

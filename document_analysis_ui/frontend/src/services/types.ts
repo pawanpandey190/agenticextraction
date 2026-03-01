@@ -17,6 +17,7 @@ export interface Session {
   // Batch support
   batch_id: string | null;
   student_name: string | null;
+  student_folder: string | null;
 }
 
 export interface CreateSessionResponse {
@@ -126,6 +127,7 @@ export type BatchStatus = 'created' | 'processing' | 'completed' | 'partial_fail
 export interface BatchSessionInfo {
   session_id: string;
   student_name: string;
+  student_folder: string | null;
   status: SessionStatus;
   total_files: number;
   result_available: boolean;

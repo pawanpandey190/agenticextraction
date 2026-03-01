@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # Session settings
     session_base_dir: str = "/app/data/sessions"
-    session_expiry_hours: int = 24
+    session_expiry_hours: int = 6
     max_upload_size_mb: int = 50
 
     # CORS settings
