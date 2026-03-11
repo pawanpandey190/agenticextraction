@@ -28,7 +28,7 @@ RUN sed -i '/-e/d' requirements.txt && \
     pip install --no-cache-dir -r requirements.txt && \
     find /usr/local/lib/python3.11/site-packages -name "tests" -type d -exec rm -rf {} + && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + && \
-    apt-get purge -y gcc python3-dev findutils && \
+    apt-get purge -y gcc python3-dev && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /root/.cache/pip
