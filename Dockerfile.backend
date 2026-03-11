@@ -1,37 +1,25 @@
-# Stage 1: Builder
-FROM python:3.11-slim-bookworm AS builder
-
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install requirements
-COPY requirements.txt .
-RUN sed -i '/-e/d' requirements.txt && \
-    pip install --user --no-cache-dir -r requirements.txt
-
-# Stage 2: Final
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# Install runtime dependencies ONLY
+# Install system dependencies and clean up apt immediately
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
     tesseract-ocr \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+# Copy requirements
+COPY requirements.txt .
 
-# Create logs directory
-RUN mkdir -p /app/logs && chmod 777 /app/logs
+# Strip local paths and install everything in one layer, then remove build-only packages
+RUN sed -i '/-e/d' requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get purge -y gcc python3-dev && \
+    apt-get autoremove -y && \
+    rm -rf /root/.cache/pip
 
 # Copy application code
 COPY passport_analysis_agent/ /app/passport_analysis_agent/
@@ -41,13 +29,15 @@ COPY master_orchestrator_agent/ /app/master_orchestrator_agent/
 COPY document_analysis_ui/backend/ /app/document_analysis_ui/backend/
 COPY ["conditional letter_v1.docx", "."]
 
-# Install agents in editable mode
-# Note: Since they are local, we keep them in editable mode or just install them
-RUN pip install --no-cache-dir -e /app/passport_analysis_agent && \
-    pip install --no-cache-dir -e /app/financial_document_agent && \
-    pip install --no-cache-dir -e /app/education_credential_agent && \
-    pip install --no-cache-dir -e /app/master_orchestrator_agent && \
-    pip install --no-cache-dir -e /app/document_analysis_ui/backend
+# Create logs directory
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
+# Install agents in editable mode but without re-downloading dependencies
+RUN pip install --no-cache-dir --no-deps -e /app/passport_analysis_agent && \
+    pip install --no-cache-dir --no-deps -e /app/financial_document_agent && \
+    pip install --no-cache-dir --no-deps -e /app/education_credential_agent && \
+    pip install --no-cache-dir --no-deps -e /app/master_orchestrator_agent && \
+    pip install --no-cache-dir --no-deps -e /app/document_analysis_ui/backend
 
 ENV PYTHONPATH="/app/document_analysis_ui/backend:/app/master_orchestrator_agent/src:/app/passport_analysis_agent/src:/app/education_credential_agent/src:/app/financial_document_agent/src"
 ENV PYTHONUNBUFFERED=1
