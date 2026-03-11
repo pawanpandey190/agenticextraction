@@ -1,27 +1,40 @@
 FROM python:3.11-slim-bookworm
 
+# Prevent .pyc files and buffering
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # Install system dependencies and clean up apt immediately
+# Added 'find' for later pruning
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
     tesseract-ocr \
     gcc \
     python3-dev \
+    findutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
 COPY requirements.txt .
 
-# Strip local paths and install everything in one layer, then remove build-only packages
+# 1. Strip local paths
+# 2. Install everything
+# 3. Aggressively delete tests and caches from site-packages to save ~200MB+
+# 4. Remove build tools
 RUN sed -i '/-e/d' requirements.txt && \
     pip install --no-cache-dir -r requirements.txt && \
-    apt-get purge -y gcc python3-dev && \
+    find /usr/local/lib/python3.11/site-packages -name "tests" -type d -exec rm -rf {} + && \
+    find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + && \
+    apt-get purge -y gcc python3-dev findutils && \
     apt-get autoremove -y && \
+    apt-get clean && \
     rm -rf /root/.cache/pip
 
 # Copy application code
+# We do this after external deps to maximize layer caching
 COPY passport_analysis_agent/ /app/passport_analysis_agent/
 COPY financial_document_agent/ /app/financial_document_agent/
 COPY education_credential_agent/ /app/education_credential_agent/
@@ -37,10 +50,10 @@ RUN pip install --no-cache-dir --no-deps -e /app/passport_analysis_agent && \
     pip install --no-cache-dir --no-deps -e /app/financial_document_agent && \
     pip install --no-cache-dir --no-deps -e /app/education_credential_agent && \
     pip install --no-cache-dir --no-deps -e /app/master_orchestrator_agent && \
-    pip install --no-cache-dir --no-deps -e /app/document_analysis_ui/backend
+    pip install --no-cache-dir --no-deps -e /app/document_analysis_ui/backend && \
+    find /app -name "__pycache__" -type d -exec rm -rf {} +
 
 ENV PYTHONPATH="/app/document_analysis_ui/backend:/app/master_orchestrator_agent/src:/app/passport_analysis_agent/src:/app/education_credential_agent/src:/app/financial_document_agent/src"
-ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
