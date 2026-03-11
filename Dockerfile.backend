@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
 
 # Install requirements
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+RUN sed -i '/-e/d' requirements.txt && \
+    pip install --user --no-cache-dir -r requirements.txt
 
 # Stage 2: Final
 FROM python:3.11-slim-bookworm
