@@ -17,3 +17,4 @@ __pycache__
 *.png
 *.jpg
 *.docx
+!conditional letter_v1.docx
