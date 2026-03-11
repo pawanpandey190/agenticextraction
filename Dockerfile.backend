@@ -8,29 +8,21 @@ WORKDIR /app
 
 # Install system dependencies and clean up apt immediately
 # Added 'find' for later pruning
-RUN apt-get update && apt-get install -y \
+# Copy requirements first
+COPY requirements.txt .
+
+# Install system dependencies and Python packages in a single layer to save space
+RUN sed -i '/-e/d' requirements.txt && \
+    apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
     tesseract-ocr \
-    gcc \
-    python3-dev \
     findutils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements
-COPY requirements.txt .
-
-# 1. Strip local paths
-# 2. Install everything
-# 3. Aggressively delete tests and caches from site-packages to save ~200MB+
-# 4. Remove build tools
-RUN sed -i '/-e/d' requirements.txt && \
+    && rm -rf /var/lib/apt/lists/* && \
     pip install --no-cache-dir -r requirements.txt && \
+    # Aggressively delete tests and caches from site-packages
     find /usr/local/lib/python3.11/site-packages -name "tests" -type d -exec rm -rf {} + && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + && \
-    apt-get purge -y gcc python3-dev && \
-    apt-get autoremove -y && \
-    apt-get clean && \
     rm -rf /root/.cache/pip
 
 # Copy application code
