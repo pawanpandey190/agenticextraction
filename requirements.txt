@@ -25,7 +25,7 @@ lxml==6.0.2
 -e /Users/pawanpandey/Documents/french_admission_workflow-main/master_orchestrator_agent
 numpy==2.4.2
 openai==2.16.0
-opencv-python==4.13.0.92
+opencv-python-headless==4.13.0.92
 openpyxl==3.1.5
 # Editable install with no version control (passport-analysis-agent==0.1.0)
 -e /Users/pawanpandey/Documents/french_admission_workflow-main/passport_analysis_agent
