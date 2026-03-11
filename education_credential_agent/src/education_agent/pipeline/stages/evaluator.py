@@ -50,8 +50,10 @@ class EvaluatorStage(PipelineStage):
             )
             documents_analyzed.append(doc)
 
-        # Determine highest qualification
-        highest_qualification = self._find_highest_qualification(context.credentials)
+        # Determine highest qualification considering admission level
+        highest_qualification = self._find_highest_qualification(
+            context.credentials, context.evaluation_level
+        )
 
         # Determine student name (from highest qualification or any credential)
         student_name = None
@@ -103,11 +105,15 @@ class EvaluatorStage(PipelineStage):
 
         return context
 
-    def _find_highest_qualification(self, credentials: list) -> HighestQualification | None:
-        """Find the highest qualification from all credentials.
+    def _find_highest_qualification(
+        self, credentials: list, evaluation_level: str | None = None
+    ) -> HighestQualification | None:
+        """Find the highest qualification from all credentials,
+        considering the admission/evaluation level requested.
 
         Args:
             credentials: List of CredentialData objects
+            evaluation_level: The target admission level (e.g., "bachelors", "masters")
 
         Returns:
             HighestQualification or None
@@ -147,9 +153,30 @@ class EvaluatorStage(PipelineStage):
         if not degree_credentials:
             return None
 
-        # Sort by academic level rank and then document priority (descending)
+        # Determine "Target Rank" based on Evaluation Level
+        target_rank = 0
+        if evaluation_level == "schooling":
+            target_rank = 1
+        elif evaluation_level == "bachelors":
+            target_rank = 1  # Evaluate Secondary for Bachelors admission
+        elif evaluation_level == "masters":
+            target_rank = 3  # Evaluate Bachelors for Masters admission
+
+        def get_relevance_score(c) -> int:
+            rank = c.academic_level.rank
+            if target_rank > 0:
+                if rank == target_rank:
+                    return 100
+                elif rank > target_rank:
+                    return 50
+                else:
+                    return rank
+            return rank
+
+        # Sort primarily by relevance, then by academic level rank and then document priority
         degree_credentials.sort(
             key=lambda c: (
+                get_relevance_score(c),
                 c.academic_level.rank,
                 get_doc_priority(c.document_type)
             ), 
@@ -208,7 +235,9 @@ class EvaluatorStage(PipelineStage):
             )
 
         # Build grade conversion result
-        grade_conversion = self._build_grade_conversion_result(context)
+        grade_conversion = self._build_grade_conversion_result(
+            context, context.evaluation_level
+        )
 
         return EvaluationResult(
             bachelor_rules_applied=bachelor_rules_applied,
@@ -216,11 +245,14 @@ class EvaluatorStage(PipelineStage):
             grade_conversion=grade_conversion,
         )
 
-    def _build_grade_conversion_result(self, context: PipelineContext) -> GradeConversionResult:
+    def _build_grade_conversion_result(
+        self, context: PipelineContext, evaluation_level: str | None = None
+    ) -> GradeConversionResult:
         """Build the grade conversion result.
 
         Args:
             context: Pipeline context
+            evaluation_level: Target admission level
 
         Returns:
             GradeConversionResult
@@ -238,10 +270,34 @@ class EvaluatorStage(PipelineStage):
             }
             return priorities.get(doc_type, 0)
 
+        # Determine "Target Rank"
+        target_rank = 0
+        if evaluation_level == "schooling":
+            target_rank = 1
+        elif evaluation_level == "bachelors":
+            target_rank = 1
+        elif evaluation_level == "masters":
+            target_rank = 3
+
+        def get_relevance_score(c) -> int:
+            rank = c.academic_level.rank
+            if target_rank > 0:
+                if rank == target_rank:
+                    return 100
+                elif rank > target_rank:
+                    return 50
+                else:
+                    return rank
+            return rank
+
         # Find the highest credential with a converted grade
         for credential in sorted(
             context.credentials,
-            key=lambda c: (c.academic_level.rank, get_doc_priority(c.document_type)),
+            key=lambda c: (
+                get_relevance_score(c),
+                c.academic_level.rank,
+                get_doc_priority(c.document_type)
+            ),
             reverse=True,
         ):
             if not credential.final_grade:
@@ -258,18 +314,35 @@ class EvaluatorStage(PipelineStage):
                 and not semester_result.get("is_complete", True)
             )
 
+            # Add formula transparency to conversion notes
+            formula_note = ""
+            from ...config.constants import GradingSystem
+            
+            if credential.final_grade.grading_system == GradingSystem.PERCENTAGE:
+                formula_note = f"Formula: ({credential.final_grade.numeric_value}/100) * 20"
+            elif credential.final_grade.grading_system == GradingSystem.GPA_4:
+                formula_note = f"Formula: ({credential.final_grade.numeric_value}/4.0) * 20"
+            elif credential.final_grade.grading_system == GradingSystem.GPA_10:
+                formula_note = f"Formula: ({credential.final_grade.numeric_value}/10.0) * 20"
+            elif credential.final_grade.grading_system == GradingSystem.GERMAN_5:
+                formula_note = f"Formula: ((5 - {credential.final_grade.numeric_value}) / 4.0) * 20"
+            else:
+                formula_note = f"Calculated using specialized range mapping for {credential.final_grade.grading_system.value}"
+
             conversion_notes = credential.final_grade.conversion_notes or ""
+            if conversion_notes:
+                conversion_notes += "; "
+            conversion_notes += formula_note
+
             if is_incomplete_bachelor:
-                if conversion_notes:
-                    conversion_notes += "; "
-                conversion_notes += "Incomplete records - result based on available data"
+                conversion_notes += "; Incomplete records - result based on available data"
 
             return GradeConversionResult(
-                conversion_source="GRADE CONVERSION TABLES BY REGION",
+                conversion_source="EXACT MATHEMATICAL FORMULA",
                 original_grade=credential.final_grade.original_value,
                 original_scale=credential.final_grade.grading_system,
                 french_equivalent_0_20=(
-                    f"{french_equivalent:.1f}" if french_equivalent is not None else None
+                    f"{french_equivalent:.2f}" if french_equivalent is not None else None
                 ),
                 conversion_notes=conversion_notes,
                 conversion_possible=conversion_possible,

@@ -55,13 +55,17 @@ Examples:
 - is_provisional: Whether this is a provisional certificate
 
 ## Grading System Detection Rules:
-- If grades are in 0-100 range with % symbol -> PERCENTAGE
-- If grades are in 0-4.0 range -> GPA_4
-- If grades are in 0-10.0 range (common in India) -> GPA_10
-- If grades are A, B, C, D, F or A+, A-, B+, etc. -> LETTER_GRADE
-- If grades are First, 2:1, 2:2, Third -> UK_HONORS
-- If grades are in 1.0-5.0 range (1.0 best) -> GERMAN_5
-- If grades are in 0-20 range -> FRENCH_20
+- If grades are in 0-100 range with % symbol or "Marks" label → PERCENTAGE
+- If grades are in 0-4.0 range → GPA_4
+- If grades are in 0-10.0 range (common in India, labeled CGPA, GPA, or Grade Point) → GPA_10
+- If grades are A, B, C, D, F or A+, A-, B+, etc. → LETTER_GRADE
+- If grades are First, 2:1, 2:2, Third → UK_HONORS
+- If grades are in 1.0-5.0 range (1.0 best) → GERMAN_5
+- If grades are in 0-20 range → FRENCH_20
+- Use "OTHER" ONLY if none of the above apply. Do NOT default to "OTHER" when unsure.
+- If a document shows both CGPA (out of 10) and Percentage, prefer PERCENTAGE as system type.
+- **CRITICAL**: `numeric_value` MUST be set to a number if ANY numeric marks/grades exist on the page. It should NEVER be null if any numeric grade is visible.
+- **CRITICAL**: `max_possible` MUST be set whenever it is determinable (e.g., 100 for percentage, 4.0 for GPA_4, 10.0 for GPA_10).
 
 Return your extraction as JSON:
 {

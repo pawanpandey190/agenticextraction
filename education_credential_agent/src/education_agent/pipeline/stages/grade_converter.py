@@ -49,8 +49,10 @@ class GradeConverterStage(PipelineStage):
             self.logger.warning("No grade conversion table available, using default")
             table = GradeTableService.create_default_table()
 
-        # Find highest qualification credential
-        highest_cred = self._find_highest_qualification_credential(context.credentials)
+        # Find highest qualification credential considering the session's evaluation level
+        highest_cred = self._find_highest_qualification_credential(
+            context.credentials, context.evaluation_level
+        )
 
         if not highest_cred:
             self.logger.warning("No credential found for grade conversion")
@@ -79,11 +81,12 @@ class GradeConverterStage(PipelineStage):
             if highest_cred.final_grade.numeric_value is None or highest_cred.final_grade.numeric_value == 0:
                 self._aggregate_semester_grades(highest_cred, context.credentials)
 
-            # Allow conversion if we have either a numeric value OR an original string value for letter grades
+            grade = highest_cred.final_grade
+
+            # Allow conversion if we have either a numeric value OR a letter grade string
             can_convert = (
-                highest_cred.final_grade.numeric_value is not None or 
-                (highest_cred.final_grade.grading_system == GradingSystem.LETTER_GRADE and highest_cred.final_grade.original_value) or
-                (highest_cred.final_grade.grading_system == GradingSystem.UK_HONORS and highest_cred.final_grade.original_value)
+                grade.numeric_value is not None or
+                (grade.grading_system in [GradingSystem.LETTER_GRADE, GradingSystem.UK_HONORS] and grade.original_value)
             )
 
             if not can_convert:
@@ -99,39 +102,65 @@ class GradeConverterStage(PipelineStage):
                 })
                 return context
 
-            french_equivalent = self._convert_grade(
-                grade=highest_cred.final_grade,
-                country=highest_cred.country,
-                table=table,
-            )
+            # ── THRESHOLD-BASED FRENCH EQUIVALENCE ─────────────────────────────
+            # Look up country-specific threshold; compare student score to it.
+            # Result: 8.0 = PASS (≥ 8/20), 4.0 = FAIL (< 8/20)
+
+            country_system = table.get_country_system(highest_cred.country) if highest_cred.country else None
+
+            if country_system:
+                meets_threshold, reason = country_system.check_threshold(
+                    numeric_value=grade.numeric_value,
+                    grading_system=grade.grading_system.value if grade.grading_system else "OTHER",
+                    max_possible=grade.max_possible,
+                    original_value=grade.original_value,
+                )
+                french_equivalent = 8.0 if meets_threshold else 4.0
+            else:
+                # No country config — try a generic threshold check via formula
+                from ...models.grade_conversion import normalize_to_quality_pct
+                normalized = normalize_to_quality_pct(
+                    grade.numeric_value,
+                    grade.grading_system.value if grade.grading_system else "OTHER",
+                    grade.max_possible,
+                )
+                if normalized is not None:
+                    meets_threshold = normalized >= 40.0  # Generic 40% = 8/20 threshold
+                    french_equivalent = 8.0 if meets_threshold else 4.0
+                    reason = (
+                        f"{normalized:.1f}% {'≥' if meets_threshold else '<'} 40% "
+                        f"(generic threshold, no country-specific config found) → "
+                        f"{'≥' if meets_threshold else '<'} 8/20."
+                    )
+                else:
+                    french_equivalent = None
+                    reason = "Could not evaluate grade — insufficient data."
 
             if french_equivalent is not None:
-                highest_cred.final_grade.french_scale_equivalent = french_equivalent
-                highest_cred.final_grade.conversion_notes = (
-                    f"Converted from {highest_cred.final_grade.grading_system.value} "
-                    f"using {'country-specific' if highest_cred.country else 'default'} rules"
-                )
+                grade.french_scale_equivalent = french_equivalent
+                grade.conversion_notes = reason
 
                 context.set_stage_result(self.name, {
                     "conversions_attempted": 1,
                     "conversions_successful": 1,
                     "table_version": table.version if table else None,
                     "credential_converted": highest_cred.source_file,
-                    "original_grade": highest_cred.final_grade.original_value,
+                    "original_grade": grade.original_value,
                     "french_equivalent": french_equivalent,
+                    "threshold_met": french_equivalent >= 8.0,
+                    "reason": reason,
                 })
 
                 self.logger.info(
-                    "Grade converted for highest qualification",
+                    "Grade threshold evaluated",
                     file=highest_cred.source_file,
-                    original=highest_cred.final_grade.original_value,
+                    original=grade.original_value,
                     french_equivalent=french_equivalent,
+                    threshold_met=french_equivalent >= 8.0,
                 )
             else:
-                highest_cred.final_grade.conversion_notes = "Conversion Not Possible"
-                context.metadata.add_flag(
-                    f"CONVERSION_NOT_POSSIBLE: {highest_cred.source_file}"
-                )
+                grade.conversion_notes = "Threshold evaluation not possible — no grade data."
+                context.metadata.add_flag(f"CONVERSION_NOT_POSSIBLE: {highest_cred.source_file}")
                 context.set_stage_result(self.name, {
                     "conversions_attempted": 1,
                     "conversions_successful": 0,
@@ -140,9 +169,9 @@ class GradeConverterStage(PipelineStage):
                     "reason": "Conversion not possible",
                 })
                 self.logger.warning(
-                    "Grade conversion not possible",
+                    "Grade threshold evaluation not possible",
                     file=highest_cred.source_file,
-                    grading_system=highest_cred.final_grade.grading_system.value,
+                    grading_system=grade.grading_system.value if grade.grading_system else None,
                     country=highest_cred.country,
                 )
 
@@ -167,25 +196,27 @@ class GradeConverterStage(PipelineStage):
         return context
 
     def _find_highest_qualification_credential(
-        self, credentials: list[CredentialData]
+        self, credentials: list[CredentialData], evaluation_level: str | None = None
     ) -> CredentialData | None:
-        """Find the credential with the highest academic level and best document type.
+        """Find the credential with the highest academic level and best document type,
+        considering the admission/evaluation level requested.
 
         Args:
             credentials: List of CredentialData objects
+            evaluation_level: The target admission level (e.g., "bachelors", "masters")
 
         Returns:
             The highest qualification credential or None
         """
         # Define document type priority (higher is better)
         type_priority = {
-            DocumentType.TRANSCRIPT: 10,
-            DocumentType.DEGREE_CERTIFICATE: 10,
-            DocumentType.MARK_SHEET: 8,
-            DocumentType.CONSOLIDATED_MARK_SHEET: 8,
-            DocumentType.PROVISIONAL_CERTIFICATE: 7,
-            DocumentType.DIPLOMA: 6,
-            DocumentType.SEMESTER_MARK_SHEET: 5,
+            DocumentType.CONSOLIDATED_MARK_SHEET: 10,
+            DocumentType.TRANSCRIPT: 9,
+            DocumentType.DEGREE_CERTIFICATE: 8,
+            DocumentType.MARK_SHEET: 7,
+            DocumentType.PROVISIONAL_CERTIFICATE: 6,
+            DocumentType.DIPLOMA: 5,
+            DocumentType.SEMESTER_MARK_SHEET: 4,
         }
 
         # Filter to documents that can represent a qualification
@@ -197,16 +228,42 @@ class GradeConverterStage(PipelineStage):
         if not qualification_creds:
             return None
 
-        # Sort primarily by academic level rank (highest first)
-        # Secondarily by document type priority (Transcript/Degree first)
+        # Determine "Target Rank" based on Evaluation Level
+        # schooling -> Rank 1 (Secondary)
+        # bachelors -> Rank 1 (Secondary) (since you need Secondary to enter Bachelors)
+        # masters   -> Rank 3 (Bachelor)  (since you need Bachelors to enter Masters)
+        target_rank = 0
+        if evaluation_level == "schooling":
+            target_rank = 1
+        elif evaluation_level == "bachelors":
+            target_rank = 1  # We evaluate the Secondary certificate for Bachelors admission
+        elif evaluation_level == "masters":
+            target_rank = 3  # We evaluate the Bachelors degree for Masters admission
+
+        def get_relevance_score(c: CredentialData) -> int:
+            """Prioritize the target rank, but don't ignore higher ranks if they exist."""
+            rank = c.academic_level.rank
+            if target_rank > 0:
+                if rank == target_rank:
+                    return 100  # Perfect match for admission level
+                elif rank > target_rank:
+                    return 50  # Higher than target, still relevant
+                else:
+                    return rank  # Lower than target
+            return rank
+
+        # Sort primarily by relevance, then by academic level rank, then by type priority
         qualification_creds.sort(
             key=lambda c: (
+                get_relevance_score(c),
                 c.academic_level.rank,
                 type_priority.get(c.document_type, 0),
                 c.confidence_score
             ),
             reverse=True
         )
+
+        return qualification_creds[0]
         
         return qualification_creds[0]
 
@@ -286,7 +343,19 @@ class GradeConverterStage(PipelineStage):
 
         # For letter-based systems, we can proceed even without a numeric value
         if numeric_value is None and grading_system not in [GradingSystem.LETTER_GRADE, GradingSystem.UK_HONORS]:
-            return None
+            # Last resort: try original_value as a float
+            if grade.original_value:
+                try:
+                    numeric_value = float(grade.original_value.replace('%', '').strip())
+                    self.logger.warning(
+                        "numeric_value was None, parsed from original_value",
+                        original=grade.original_value,
+                        parsed=numeric_value,
+                    )
+                except (ValueError, AttributeError):
+                    return None
+            else:
+                return None
 
         # Cap percentage at 100
         if grading_system == GradingSystem.PERCENTAGE:
@@ -300,26 +369,41 @@ class GradeConverterStage(PipelineStage):
             return table.convert_gpa_10(numeric_value, country)
 
         elif grading_system == GradingSystem.LETTER_GRADE:
-            return table.convert_letter(grade.original_value, country)
+            # Try country-specific first, then fall back to US letter grades (most universal)
+            result = table.convert_letter(grade.original_value, country)
+            if result is None:
+                result = table.convert_letter(grade.original_value, "US")
+            return result
 
         elif grading_system == GradingSystem.UK_HONORS:
-            return table.convert_letter(grade.original_value, country or "GB")
+            result = table.convert_letter(grade.original_value, country or "GB")
+            if result is None:
+                result = table.convert_letter(grade.original_value, "GB")
+            return result
 
         elif grading_system == GradingSystem.GERMAN_5:
             # German grades: 1.0-5.0 where 1.0 is best
-            country_system = table.get_country_system("DE")
-            if country_system:
-                return country_system.convert_numeric(numeric_value)
-            return None
+            # Use formula directly: ((5 - grade) / 4) * 20
+            val = max(1.0, min(5.0, numeric_value))
+            return round(((5.0 - val) / 4.0) * 20.0, 2)
 
         elif grading_system == GradingSystem.FRENCH_20:
             # Already on French scale
-            return numeric_value
+            return round(numeric_value, 2)
 
         else:
-            # Try to convert as percentage if in 0-100 range
+            # GradingSystem.OTHER — try intelligent fallback
+            # 1. If max_possible is known, use universal formula
+            if grade.max_possible and grade.max_possible > 0:
+                return round((numeric_value / grade.max_possible) * 20.0, 2)
+
+            # 2. If value is in percentage range (0–100), treat as percentage
             if 0 <= numeric_value <= 100:
                 return table.convert_percentage(numeric_value, country)
+
+            # 3. If value looks like a 4.0 GPA
+            if 0 <= numeric_value <= 4.0:
+                return table.convert_gpa_4(numeric_value, country)
 
             return None
 
@@ -361,10 +445,10 @@ def convert_grade_to_french(
         return table.convert_letter(original_value, country or "GB")
 
     elif grading_system == GradingSystem.GERMAN_5:
-        country_system = table.get_country_system("DE")
-        if country_system:
-            return country_system.convert_numeric(numeric_value)
-        return None
+        # German grades: 1.0-5.0 where 1.0 is best
+        # Use formula directly: ((5 - grade) / 4) * 20
+        val = max(1.0, min(5.0, numeric_value))
+        return round(((5.0 - val) / 4.0) * 20.0, 2)
 
     elif grading_system == GradingSystem.FRENCH_20:
         return numeric_value

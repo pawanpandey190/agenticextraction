@@ -211,7 +211,11 @@ export function ReportView({
                 <h4 className="text-xl font-bold text-slate-800">
                   {result.education?.french_equivalence || 'Pending Equivalence'}
                 </h4>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-1">{(result.education?.french_equivalent_grade_0_20 ?? 0).toFixed(2)}/20 French Scale</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-1">
+                  {result.education?.french_equivalent_grade_0_20 !== null
+                    ? (result.education!.french_equivalent_grade_0_20 >= 8 ? '≥ 8/20' : '< 8/20')
+                    : 'N/A'} French Scale
+                </p>
               </div>
             </div>
           </GlassCard>

@@ -64,7 +64,9 @@ export function EducationTab({ data }: EducationTabProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">EQUIVALENT FRENCH GRADE</p>
-                <h4 className="text-3xl font-black text-slate-900 tracking-tight">{(data.french_equivalent_grade_0_20 ?? 0).toFixed(2)}/20</h4>
+                <h4 className="text-3xl font-black text-slate-900 tracking-tight">
+                  {data.french_equivalent_grade_0_20 !== null ? (data.french_equivalent_grade_0_20 >= 8 ? '≥ 8/20' : '< 8/20') : 'N/A'}
+                </h4>
               </div>
               <div className={`p-3 rounded-2xl bg-brand-primary/10 text-brand-primary border border-brand-primary/10 shadow-sm`}>
                 <Scale className="w-8 h-8" />

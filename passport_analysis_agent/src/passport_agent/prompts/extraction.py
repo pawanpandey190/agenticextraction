@@ -9,37 +9,32 @@ def get_visual_extraction_prompt() -> str:
     """
     return """Analyze this passport image and extract the following information from the Visual Inspection Zone (VIZ). 
 
-IMPORTANT: Pay special attention to the name fields to ensure high accuracy.
+STEP 1: VISUAL RISK ASSESSMENT
+Before extracting data, identify if the image has any of the following:
+- GLARE (white reflections obscuring text)
+- BLUR (soft edges or unreadable fine print)
+- SHADOWS (uneven lighting)
+- SKEW (tilted document)
 
-1. first_name: Extract ALL given names exactly as they appear (do not truncate). Look for labels like "Given Names", "Prénoms", or "Post-Nom".
-2. last_name: Extract the complete surname/family name. Look for labels like "Surname" or "Nom".
+STEP 2: DATA EXTRACTION
+1. first_name: Extract ALL given names exactly as they appear.
+2. last_name: Extract the complete surname.
 3. date_of_birth: In YYYY-MM-DD format.
-4. passport_number: Document number, usually in the TOP RIGHT corner or top edge.
+4. passport_number: Document number from the VIZ.
 5. issuing_country: 3-letter ICAO country code.
 6. nationality: 3-letter ICAO country code.
-7. passport_issue_date: In YYYY-MM-DD format (if visible).
+7. passport_issue_date: In YYYY-MM-DD format.
 8. passport_expiry_date: In YYYY-MM-DD format.
-9. sex: M for Male, F for Female, X for Unspecified.
-10. place_of_birth: City/country of birth (if visible).
-11. confidence: Your confidence score (0.0-1.0).
-12. accuracy_score: An overall assessment of the document's validity and readability (0-100).
-13. is_passport: Boolean. Set to true ONLY if the document is a valid passport with a 2-line TD3 MRZ. Set to false for ID cards, visas, or random papers.
-14. justification: A detailed multi-sentence explanation for the accuracy_score and passport status.
+9. sex: M, F, or X.
+10. place_of_birth: City/country.
+11. confidence: 0.0-1.0 (Penalize heavily for Step 1 risks).
+12. accuracy_score: 0-100 (90+ only for perfect scans).
+13. is_passport: Boolean.
+14. justification: Start with a 'Visual Quality' section listing any defects found in Step 1, then explain the score.
 
-Guidelines for Data Accuracy:
-- AVOID HALLUCINATIONS: Do not confuse city names with person names.
-- ACCURACY SCORE: Assign a score based on image resolution, authenticity, and readability.
-- IS PASSPORT: This system specifically validates PASS-PORTS. If you see an ID Card, Residence Permit, or Visa, set is_passport to false.
-- JUSTIFICATION: If the document is NOT a passport, set accuracy_score to 0 and explain why.
-- Convert names to UPPERCASE.
-- Ignore titles (Mr, Ms, Dr, etc.).
-- NEVER include MRZ-specific prefixes (like "P<", "ETH", "P") in name fields.
-- Maintain exact spelling and punctuations (e.g. hyphens, apostrophes).
-- If names are split across lines, join them with a single space.
-- Check the MRZ at the bottom for verification, but the VIZ is the priority for non-truncated names.
+CRITICAL: If glare is present over a name or number, your accuracy_score MUST be below 70.
 
-Return the data as a JSON object with these exact field names.
-For any field that is not visible or unclear, use null."""
+Return as a JSON object with these exact field names."""
 
 
 def get_mrz_extraction_prompt() -> str:
