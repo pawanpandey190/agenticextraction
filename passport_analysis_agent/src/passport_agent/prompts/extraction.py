@@ -7,7 +7,7 @@ def get_visual_extraction_prompt() -> str:
     Returns:
         Extraction prompt string
     """
-    return """Analyze this passport image and extract the following information from the Visual Inspection Zone (VIZ). 
+    return """Analyze this identity document image and extract the following information. 
 
 STEP 1: VISUAL RISK ASSESSMENT
 Before extracting data, identify if the image has any of the following:
@@ -16,23 +16,26 @@ Before extracting data, identify if the image has any of the following:
 - SHADOWS (uneven lighting)
 - SKEW (tilted document)
 
-STEP 2: DATA EXTRACTION
+STEP 2: DOCUMENT IDENTIFICATION
+Determine if the document is a Passport, Aadhaar Card, or National ID.
+
+STEP 3: DATA EXTRACTION
 1. first_name: Extract ALL given names exactly as they appear.
 2. last_name: Extract the complete surname.
 3. date_of_birth: In YYYY-MM-DD format.
-4. passport_number: Document number from the VIZ.
+4. passport_number: Document number (Passport Number, Aadhaar Number, or ID Number).
 5. issuing_country: 3-letter ICAO country code.
 6. nationality: 3-letter ICAO country code.
-7. passport_issue_date: In YYYY-MM-DD format.
-8. passport_expiry_date: In YYYY-MM-DD format.
+7. passport_issue_date: In YYYY-MM-DD format (if available).
+8. passport_expiry_date: In YYYY-MM-DD format (if available).
 9. sex: M, F, or X.
-10. place_of_birth: City/country.
+10. place_of_birth: City/country (if available).
 11. confidence: 0.0-1.0 (Penalize heavily for Step 1 risks).
-12. accuracy_score: 0-100 (90+ only for perfect scans).
-13. is_passport: Boolean.
-14. justification: Start with a 'Visual Quality' section listing any defects found in Step 1, then explain the score.
+12. accuracy_score: 0-100 (Score should be high for clear Aadhaar cards, even if not a passport).
+13. is_passport: Set to true ONLY for passports with MRZ zones; false for Aadhaar/ID cards.
+14. justification: Start with a 'Visual Quality' section listing any defects found in Step 1, then explain the score and document type.
 
-CRITICAL: If glare is present over a name or number, your accuracy_score MUST be below 70.
+CRITICAL: Map the primary identity number to 'passport_number' regardless of document type.
 
 Return as a JSON object with these exact field names."""
 

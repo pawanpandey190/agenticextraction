@@ -188,7 +188,8 @@ class ScorerStage(PipelineStage):
         reasons = []
         
         # 1. Overall Score & Confidence
-        reasons.append(f"Passport analysis completed with an accuracy score of {score}/100 ({confidence} confidence).")
+        doc_type = "Passport" if context.is_passport else "Identity document"
+        reasons.append(f"{doc_type} analysis completed with an accuracy score of {score}/100 ({confidence} confidence).")
 
         # 2. MRZ Validation
         if context.mrz_data:
@@ -206,7 +207,10 @@ class ScorerStage(PipelineStage):
                 else:
                     reasons.append("MRZ was detected but failed all checksum validations.")
         else:
-            reasons.append("MRZ (Machine Readable Zone) could not be reliably detected on this document.")
+            if context.is_passport:
+                reasons.append("MRZ (Machine Readable Zone) could not be reliably detected on this document.")
+            else:
+                reasons.append("MRZ (Machine Readable Zone) is not required or was not found for this document type.")
 
         # 3. Cross-Validation
         if context.cross_validation:

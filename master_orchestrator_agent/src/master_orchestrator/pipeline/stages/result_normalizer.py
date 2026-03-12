@@ -84,11 +84,16 @@ class ResultNormalizerStage(MasterPipelineStage):
             score_reason = getattr(raw_result, "score_reason", None)
 
             # Suppress results for non-passport documents (False Positives)
-            # If the agent explicitly identified it as NOT a passport and gave 0 score,
-            # we treat it as a misclassification and omit it from the final results.
+            # We only suppress if accuracy_score is 0 AND no meaningful data was extracted.
+            # If accuracy_score > 0, it means the agent likely found an Aadhaar or ID card.
             if not is_passport and accuracy_score == 0:
-                logger.info("suppressing_passport_result_as_false_positive", remarks=remarks)
-                return None
+                # Extra check: do we have a first name and passport/ID number?
+                first_name = getattr(visual_data, "first_name", None)
+                p_num = getattr(visual_data, "passport_number", None)
+                
+                if not (first_name and p_num):
+                    logger.info("suppressing_passport_result_as_false_positive", remarks=remarks)
+                    return None
 
             # If it's a dict (fallback)
             if isinstance(raw_result, dict):
